@@ -1,4 +1,27 @@
 
+function downloadIcs(date, time) {
+    const start = new Date(`${date}T${time}`);
+    if (isNaN(start.getTime())) return; // skip if date isn't parseable
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
+    const pad = n => String(n).padStart(2, '0');
+    const fmt = d => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+    const ics = [
+        'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SecondLook//EN',
+        'BEGIN:VEVENT',
+        `UID:${Date.now()}@secondlook`,
+        `DTSTART:${fmt(start)}`,
+        `DTEND:${fmt(end)}`,
+        'SUMMARY:Interview',
+        'DESCRIPTION:Interview scheduled via SecondLook',
+        'END:VEVENT', 'END:VCALENDAR'
+    ].join('\r\n');
+    const blob = new Blob([ics], { type: 'text/calendar' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'interview.ics'; a.click();
+    URL.revokeObjectURL(url);
+}
+
 function CandidateBooking() {
     const [status, setStatus] = React.useState('selecting'); // 'selecting', 'error', 'success', 'loading'
     const [selectedTime, setSelectedTime] = React.useState(null);
@@ -132,16 +155,23 @@ function CandidateBooking() {
                             <div className="icon-check text-emerald-500 text-2xl"></div>
                         </div>
                         <h2 className="text-xl font-semibold text-zinc-100 mb-2">Interview Scheduled!</h2>
-                        <p className="text-zinc-400 text-sm mb-2">A calendar invitation with Google Meet details has been sent to your email.</p>
+                        <p className="text-zinc-400 text-sm mb-2">Your interview has been confirmed.</p>
                         <div className="inline-block mt-4 p-4 rounded-xl bg-zinc-950 border border-zinc-800 text-left w-full max-w-sm">
                             <div className="text-zinc-400 text-xs uppercase tracking-wider mb-1">When</div>
                             <div className="text-zinc-100 font-medium mb-3">{proposedTimes.find(t => t.id === selectedTime)?.date} at {proposedTimes.find(t => t.id === selectedTime)?.time}</div>
-                            
-                            <div className="text-zinc-400 text-xs uppercase tracking-wider mb-1">Where</div>
-                            <div className="text-blue-400 font-medium flex items-center gap-2">
-                                <div className="icon-video text-sm"></div> Google Meet
-                            </div>
                         </div>
+                        {(() => {
+                            const slot = proposedTimes.find(t => t.id === selectedTime);
+                            if (!slot?.date || !slot?.time) return null;
+                            return (
+                                <button
+                                    onClick={() => downloadIcs(slot.date, slot.time)}
+                                    className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm transition-colors"
+                                >
+                                    <div className="icon-calendar-plus text-sm"></div> Add to Calendar
+                                </button>
+                            );
+                        })()}
                     </div>
                 )}
             </div>

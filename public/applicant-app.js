@@ -149,15 +149,9 @@ function ApplicantProfile() {
                                         <option>Technical Assessment</option>
                                     </select>
                                     
-                                    <label className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-950 mb-6 cursor-pointer">
-                                        <input type="checkbox" id="advanceAndSchedule" defaultChecked className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 accent-emerald-500" />
-                                        <div className="text-sm text-zinc-200">Automatically open Scheduling</div>
-                                    </label>
-
                                     <div className="flex justify-end gap-3">
                                         <button onClick={() => setActiveModal(null)} className="btn-secondary">Cancel</button>
                                         <button onClick={async () => {
-                                            const shouldSchedule = document.getElementById('advanceAndSchedule').checked;
                                             try {
                                                 await window.api?.advanceApplication(application.id, advanceStage);
                                             } catch (err) {
@@ -165,13 +159,8 @@ function ApplicantProfile() {
                                                 if (window.showToast) window.showToast('Failed to advance candidate.', 'error');
                                                 return;
                                             }
-                                            if (shouldSchedule) {
-                                                if (window.showToast) window.showToast(`${application.candidate.name} advanced. Please schedule the interview.`, 'success');
-                                                setActiveModal('schedule');
-                                            } else {
-                                                if (window.showToast) window.showToast(`${application.candidate.name} advanced to ${advanceStage}.`, 'success');
-                                                setActiveModal(null);
-                                            }
+                                            if (window.showToast) window.showToast(`${application.candidate.name} advanced to ${advanceStage}.`, 'success');
+                                            setActiveModal(null);
                                         }} className="btn-primary bg-emerald-500 text-emerald-950 hover:bg-emerald-400">
                                             Advance Stage
                                         </button>
@@ -213,7 +202,6 @@ function ApplicantProfile() {
                         <div className="w-px h-6 bg-zinc-800 mx-2"></div>
                         <button onClick={() => setActiveModal('reject')} className="btn-secondary text-red-400 hover:text-red-300 hover:border-red-900/50">Reject</button>
                         <button onClick={() => setActiveModal('refer')} className="btn-secondary text-amber-500 hover:text-amber-400">Refer</button>
-                        <button onClick={() => setActiveModal('schedule')} className="btn-secondary text-blue-400 hover:text-blue-300 border-blue-900/30">Schedule</button>
                         <button onClick={() => setActiveModal('advance')} className="btn-primary bg-emerald-500 text-emerald-950 hover:bg-emerald-400">Advance</button>
                     </div>
                 </div>

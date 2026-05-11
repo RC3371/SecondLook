@@ -1,11 +1,11 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { ensureProfile } from '@/lib/ensure-profile'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   try {
-    const { auth } = await import('@clerk/nextjs/server')
-    const { orgId } = await auth()
-    if (!orgId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const profile = await ensureProfile()
+    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const formData = await req.formData()
     const file = formData.get('file') as File
@@ -13,19 +13,26 @@ export async function POST(req: Request) {
 
     if (!file || !jobId) return NextResponse.json({ error: 'file and job_id required' }, { status: 400 })
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
-    // upload to 'imports' bucket
-    const path = `${orgId}/${jobId}/${Date.now()}-${file.name}`
-    const { data, error } = await supabase.storage.from('imports').upload(path, file)
+    const path = `${profile.org_id}/${jobId}/${Date.now()}-${file.name}`
+    const { data, error } = await supabase.storage.from('resumes').upload(path, file)
     if (error) {
       console.error('Supabase storage upload error:', error)
-      return NextResponse.json({ error: error.message || error }, { status: 500 })
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // enqueue import job
-    const { triageQueue } = await import('@/lib/queue')
-    await triageQueue.add('import-applicants', { orgId, jobId, path: data.path, fileName: file.name })
+    // Enqueue triage job if queue is configured
+    if (process.env.UPSTASH_REDIS_REST_URL) {
+      try {
+        const { triageQueue } = await import('@/lib/queue')
+        await triageQueue.add('import-applicants', {
+          orgId: profile.org_id, jobId, bucket: 'resumes', path: data.path, fileName: file.name,
+        })
+      } catch (queueErr) {
+        console.error('Queue enqueue failed (non-fatal):', queueErr)
+      }
+    }
 
     return NextResponse.json({ path: data.path })
   } catch (err) {

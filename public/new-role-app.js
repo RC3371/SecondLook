@@ -16,8 +16,7 @@ function NewRole() {
     };
 
     const handleFiles = (newFiles) => {
-        const fileNames = newFiles.map(f => f.name);
-        setFiles(prev => [...prev, ...fileNames]);
+        setFiles(prev => [...prev, ...newFiles]);
         if(window.showToast) window.showToast(`${newFiles.length} file(s) added for processing.`, 'success');
     };
 

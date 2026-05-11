@@ -22,16 +22,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Enqueue triage job if queue is configured
+    // Enqueue triage job only if Redis is configured
     if (process.env.UPSTASH_REDIS_REST_URL) {
       try {
-        const { triageQueue } = await import('@/lib/queue')
-        await triageQueue.add('import-applicants', {
+        const { getTriageQueue } = await import('@/lib/queue')
+        await getTriageQueue().add('import-applicants', {
           orgId: profile.org_id, jobId, bucket: 'resumes', path: data.path, fileName: file.name,
         })
       } catch (queueErr) {
         console.error('Queue enqueue failed (non-fatal):', queueErr)
       }
+    } else {
+      console.log('Redis not configured — skipping triage queue. File uploaded to:', data.path)
     }
 
     return NextResponse.json({ path: data.path })

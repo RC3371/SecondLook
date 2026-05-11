@@ -135,12 +135,49 @@ async function confirmBooking(token, slotId) {
   return res.json()
 }
 
+async function getTeam() {
+  const res = await fetch('/api/team')
+  if (!res.ok) throw new Error('Failed to fetch team')
+  return res.json()
+}
+
+async function inviteMember(email, role) {
+  const res = await fetch('/api/team', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'invite', email, role })
+  })
+  if (!res.ok) throw new Error('Failed to send invite')
+  return res.json()
+}
+
+async function changeMemberRole(userId, role) {
+  const res = await fetch('/api/team', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'change_role', userId, role })
+  })
+  if (!res.ok) throw new Error('Failed to change role')
+  return res.json()
+}
+
+async function removeMember(userId) {
+  const res = await fetch('/api/team', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId })
+  })
+  if (!res.ok) throw new Error('Failed to remove member')
+  return res.json()
+}
+
 const api = {
   fetchJobs, fetchJobApplications, fetchApplication, updateApplicationStatus,
   fetchReferrals, createJob, uploadImport,
   createReferral, advanceApplication, addNote,
   searchCandidates, getInterviews, scheduleInterview,
-  getSettings, saveSettings, getBooking, confirmBooking
+  getSettings, saveSettings, getBooking, confirmBooking,
+  getTeam, inviteMember, changeMemberRole, removeMember,
 }
 
 window.api = api

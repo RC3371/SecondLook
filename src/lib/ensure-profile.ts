@@ -23,22 +23,33 @@ export async function ensureProfile(): Promise<{ id: string; org_id: string } | 
   if (existing) return existing
 
   // Slow path: provision on first hit
-  if (!orgId) return null // Need an active org context
-
   const clerk = await clerkClient()
+
+  // Resolve the active org: use session orgId, or fall back to first membership
+  let activeOrgId = orgId
+  if (!activeOrgId) {
+    try {
+      const memberships = await clerk.users.getOrganizationMembershipList({ userId })
+      activeOrgId = memberships.data[0]?.organization.id ?? null
+    } catch {
+      // Can't look up memberships
+    }
+  }
+
+  if (!activeOrgId) return null
 
   // Get or create the org row in Supabase
   let { data: org } = await supabase
     .from('organizations')
     .select('id')
-    .eq('clerk_org_id', orgId)
+    .eq('clerk_org_id', activeOrgId)
     .single()
 
   if (!org) {
-    const clerkOrg = await clerk.organizations.getOrganization({ organizationId: orgId })
+    const clerkOrg = await clerk.organizations.getOrganization({ organizationId: activeOrgId })
     const { data: newOrg } = await supabase
       .from('organizations')
-      .insert({ clerk_org_id: orgId, name: clerkOrg.name })
+      .insert({ clerk_org_id: activeOrgId, name: clerkOrg.name })
       .select('id')
       .single()
     org = newOrg
@@ -53,7 +64,7 @@ export async function ensureProfile(): Promise<{ id: string; org_id: string } | 
   // Determine role from Clerk membership
   let role = 'recruiter'
   try {
-    const memberships = await clerk.organizations.getOrganizationMembershipList({ organizationId: orgId })
+    const memberships = await clerk.organizations.getOrganizationMembershipList({ organizationId: activeOrgId })
     const membership = memberships.data.find(m => m.publicUserData?.userId === userId)
     if (membership?.role === 'org:admin') role = 'admin'
   } catch {

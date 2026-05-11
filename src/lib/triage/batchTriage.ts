@@ -127,7 +127,7 @@ async function processOne(
       summary: triage.summary,
     },
     parsed_resume: parsedMeta,
-    status: "pending",
+    status: "triaged",
   };
 }
 

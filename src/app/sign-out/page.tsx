@@ -11,8 +11,8 @@ export default function SignOutPage() {
   }, [signOut])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 text-zinc-400 text-sm">
-      Signing out…
+    <div className="fixed inset-0 grid place-items-center bg-zinc-950">
+      <p className="text-zinc-400 text-sm">Signing out…</p>
     </div>
   )
 }

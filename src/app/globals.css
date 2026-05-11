@@ -5,7 +5,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -215,6 +215,11 @@
   font-weight: 500 !important;
 }
 
+.cl-formButtonPrimary *,
+.cl-formButtonPrimary span {
+  color: #09090b !important;
+}
+
 .cl-formButtonPrimary:hover {
   background-color: #ffffff !important;
 }
@@ -231,6 +236,35 @@
 
 .cl-socialButtonsBlockButtonText {
   color: #f4f4f5 !important;
+}
+
+/* Alternative methods (e.g. "Email code to…" on forgot-password page) */
+.cl-alternativeMethodsBlockButton {
+  background-color: #27272a !important; /* zinc-800 */
+  border-color: #3f3f46 !important;     /* zinc-700 */
+  color: #f4f4f5 !important;
+}
+
+.cl-alternativeMethodsBlockButton:hover {
+  background-color: #3f3f46 !important;
+}
+
+.cl-alternativeMethodsBlockButtonText,
+.cl-alternativeMethodsBlockButton *,
+.cl-alternativeMethodsBlockButton span {
+  color: #f4f4f5 !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+}
+
+.cl-alternativeMethodsBlockButton {
+  height: auto !important;
+  min-height: 2.5rem !important;
+  padding-top: 0.625rem !important;
+  padding-bottom: 0.625rem !important;
+  white-space: normal !important;
+  overflow: visible !important;
 }
 
 .cl-dividerLine {
@@ -385,4 +419,26 @@
 .cl-navbarButton[data-active] {
   color: #fafafa !important;
   background-color: #27272a !important;
+}
+
+/* Forgot password link + action links in forms */
+.cl-formFieldAction,
+.cl-formFieldAction__password {
+  color: #a1a1aa !important;
+}
+
+.cl-formFieldAction:hover {
+  color: #fafafa !important;
+}
+
+/* Forgot / reset password page body text */
+.cl-forgotPasswordRoot,
+.cl-resetPasswordRoot {
+  color: #d4d4d8 !important;
+}
+
+.cl-formHint,
+.cl-formFieldHintText,
+.cl-formFieldSuccessText {
+  color: #a1a1aa !important;
 }

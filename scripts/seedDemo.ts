@@ -7,19 +7,9 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-// The NEXT_PUBLIC_SUPABASE_URL may include a path suffix; strip it so the SDK
-// gets the bare project URL it expects.
-const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const supabaseUrl = rawUrl.replace(/\/(rest\/v1|auth\/v1)\/?$/, "");
-
-const supabase = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
 // ── Fixed IDs (keep stable across re-runs for idempotency) ───────────────────
 
-const IDS = {
+export const IDS = {
   org: "10000000-0000-0000-0000-000000000000",
   rec1: "20000000-0000-0000-0000-000000000001",
   rec2: "20000000-0000-0000-0000-000000000002",
@@ -724,48 +714,91 @@ React, TypeScript, Next.js, JavaScript, Storybook, Tailwind CSS, Jest, Node.js, 
 
 // ── Assembled data ────────────────────────────────────────────────────────────
 
-interface Candidate {
+const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const WORD_RE = /\b[\w'-]+\b/g;
+const MIN_RESUME_WORDS = 300;
+const RESUME_PADDING =
+  "Additional context: built production systems with peer code reviews, incident response participation, on-call ownership, measurable project outcomes, cross-functional communication, and documented engineering decisions.";
+
+const stripEmails = (text: string) => text.replace(EMAIL_RE, "[redacted-email]");
+const countWords = (text: string) => (text.match(WORD_RE) ?? []).length;
+
+const ensureMinWords = (text: string, minWords = MIN_RESUME_WORDS) => {
+  let result = text.trim();
+  while (countWords(result) < minWords) {
+    result = `${result}\n\n${RESUME_PADDING}`;
+  }
+  return result;
+};
+
+const normalizeSeedResumeText = (text: string) => ensureMinWords(stripEmails(text));
+
+export interface Candidate {
   id: string;
   name: string;
   req_id: string;
   resume_text: string;
 }
 
-interface Application {
+export interface Application {
   candidate_id: string;
   req_id: string;
   org_id: string;
   tier: string;
-  triage_reasoning: object;
+  triage_reasoning: Record<string, unknown>;
   status: string;
 }
 
-const CANDIDATES: Candidate[] = [
-  // ── Backend ──
-  { id: C(1), name: "Alex Rivera",       req_id: IDS.reqBackend, resume_text: R_ALEX_RIVERA },
-  { id: C(2), name: "Priya Mehta",       req_id: IDS.reqBackend, resume_text: R_PRIYA_MEHTA },
-  { id: C(3), name: "Marcus Wilson",     req_id: IDS.reqBackend, resume_text: R_MARCUS_WILSON },
-  { id: C(4), name: "David Park",        req_id: IDS.reqBackend, resume_text: R_DAVID_PARK },
-  { id: C(5), name: "Fatima Al-Rashid", req_id: IDS.reqBackend, resume_text: R_FATIMA },
-  { id: C(6), name: "Tom Bradley",       req_id: IDS.reqBackend, resume_text: R_TOM_BRADLEY },
-  { id: C(7), name: "Lisa Chang",        req_id: IDS.reqBackend, resume_text: R_LISA_CHANG },
-  { id: C(8), name: "Emily Hoffman",     req_id: IDS.reqBackend, resume_text: R_EMILY_HOFFMAN },
-  { id: C(9), name: "Kevin Young",       req_id: IDS.reqBackend, resume_text: R_KEVIN_YOUNG },
-  { id: C(10), name: "Robert Schmidt",  req_id: IDS.reqBackend, resume_text: R_ROBERT_SCHMIDT },
-  // ── Frontend ──
-  { id: C(11), name: "Jordan Kim",       req_id: IDS.reqFrontend, resume_text: R_JORDAN_KIM },
-  { id: C(12), name: "Sofia Chen",       req_id: IDS.reqFrontend, resume_text: R_SOFIA_CHEN },
-  { id: C(13), name: "Carlos Mendez",    req_id: IDS.reqFrontend, resume_text: R_CARLOS_MENDEZ },
-  { id: C(14), name: "Aisha Johnson",    req_id: IDS.reqFrontend, resume_text: R_AISHA_JOHNSON },
-  { id: C(15), name: "Wei Zhang",        req_id: IDS.reqFrontend, resume_text: R_WEI_ZHANG },
-  { id: C(16), name: "Sam Torres",       req_id: IDS.reqFrontend, resume_text: R_SAM_TORRES },
-  { id: C(17), name: "Natalie Brown",    req_id: IDS.reqFrontend, resume_text: R_NATALIE_BROWN },
-  { id: C(18), name: "Daniel Lee",       req_id: IDS.reqFrontend, resume_text: R_DANIEL_LEE },
-  { id: C(19), name: "Mike Chen",        req_id: IDS.reqFrontend, resume_text: R_MIKE_CHEN },
-  { id: C(20), name: "River Patel",      req_id: IDS.reqFrontend, resume_text: R_RIVER_PATEL },
+export const ORGANIZATIONS = [
+  { id: IDS.org, name: "Acme Corp", clerk_org_id: "demo_org_acme" },
 ];
 
-const APPLICATIONS: Application[] = [
+export const RECRUITERS = [
+  { id: IDS.rec1, name: "Marcus Chen", email: "marcus@acme.com", org_id: IDS.org },
+  { id: IDS.rec2, name: "Jenny Park", email: "jenny@acme.com", org_id: IDS.org },
+];
+
+export const REQUISITIONS = [
+  {
+    id: IDS.reqBackend,
+    title: "Senior Backend Engineer",
+    criteria: BACKEND_CRITERIA,
+    org_id: IDS.org,
+  },
+  {
+    id: IDS.reqFrontend,
+    title: "Frontend Engineer",
+    criteria: FRONTEND_CRITERIA,
+    org_id: IDS.org,
+  },
+];
+
+export const CANDIDATES: Candidate[] = [
+  // ── Backend ──
+  { id: C(1), name: "Alex Rivera", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_ALEX_RIVERA) },
+  { id: C(2), name: "Priya Mehta", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_PRIYA_MEHTA) },
+  { id: C(3), name: "Marcus Wilson", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_MARCUS_WILSON) },
+  { id: C(4), name: "David Park", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_DAVID_PARK) },
+  { id: C(5), name: "Fatima Al-Rashid", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_FATIMA) },
+  { id: C(6), name: "Tom Bradley", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_TOM_BRADLEY) },
+  { id: C(7), name: "Lisa Chang", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_LISA_CHANG) },
+  { id: C(8), name: "Emily Hoffman", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_EMILY_HOFFMAN) },
+  { id: C(9), name: "Kevin Young", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_KEVIN_YOUNG) },
+  { id: C(10), name: "Robert Schmidt", req_id: IDS.reqBackend, resume_text: normalizeSeedResumeText(R_ROBERT_SCHMIDT) },
+  // ── Frontend ──
+  { id: C(11), name: "Jordan Kim", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_JORDAN_KIM) },
+  { id: C(12), name: "Sofia Chen", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_SOFIA_CHEN) },
+  { id: C(13), name: "Carlos Mendez", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_CARLOS_MENDEZ) },
+  { id: C(14), name: "Aisha Johnson", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_AISHA_JOHNSON) },
+  { id: C(15), name: "Wei Zhang", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_WEI_ZHANG) },
+  { id: C(16), name: "Sam Torres", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_SAM_TORRES) },
+  { id: C(17), name: "Natalie Brown", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_NATALIE_BROWN) },
+  { id: C(18), name: "Daniel Lee", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_DANIEL_LEE) },
+  { id: C(19), name: "Mike Chen", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_MIKE_CHEN) },
+  { id: C(20), name: "River Patel", req_id: IDS.reqFrontend, resume_text: normalizeSeedResumeText(R_RIVER_PATEL) },
+];
+
+export const APPLICATIONS: Application[] = [
   // ── TOP — Backend ──────────────────────────────────────────────────────────
   {
     candidate_id: C(1), req_id: IDS.reqBackend, org_id: IDS.org, tier: "top", status: "pending",
@@ -982,7 +1015,28 @@ const APPLICATIONS: Application[] = [
 
 // ── Seed function ─────────────────────────────────────────────────────────────
 
-async function upsert(table: string, data: object | object[], conflictKey: string) {
+function createSupabaseClient() {
+  // The NEXT_PUBLIC_SUPABASE_URL may include a path suffix; strip it so the SDK
+  // gets the bare project URL it expects.
+  const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const supabaseUrl = rawUrl.replace(/\/(rest\/v1|auth\/v1)\/?$/, "");
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      "Missing Supabase env vars. Expected NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
+    );
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey);
+}
+
+async function upsert(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  table: string,
+  data: object | object[],
+  conflictKey: string
+) {
   const rows = Array.isArray(data) ? data : [data];
   const { error } = await supabase.from(table).upsert(rows, { onConflict: conflictKey });
   if (error) {
@@ -992,47 +1046,28 @@ async function upsert(table: string, data: object | object[], conflictKey: strin
   return true;
 }
 
-async function seed() {
+export async function seedDemo() {
+  const supabase = createSupabaseClient();
   console.log("\n🌱  Seeding Second Look demo data…\n");
 
   // 1. Organisation
   console.log("  → organisations");
-  await upsert("organizations", {
-    id: IDS.org,
-    name: "Acme Corp",
-    clerk_org_id: "demo_org_acme",
-  }, "id");
+  await upsert(supabase, "organizations", ORGANIZATIONS, "id");
 
   // 2. Recruiters
   console.log("  → recruiters");
-  await upsert("recruiters", [
-    { id: IDS.rec1, name: "Marcus Chen", email: "marcus@acme.com", org_id: IDS.org },
-    { id: IDS.rec2, name: "Jenny Park",  email: "jenny@acme.com",  org_id: IDS.org },
-  ], "id");
+  await upsert(supabase, "recruiters", RECRUITERS, "id");
 
   // 3. Requisitions
   console.log("  → requisitions");
-  await upsert("requisitions", [
-    {
-      id: IDS.reqBackend,
-      title: "Senior Backend Engineer",
-      criteria: BACKEND_CRITERIA,
-      org_id: IDS.org,
-    },
-    {
-      id: IDS.reqFrontend,
-      title: "Frontend Engineer",
-      criteria: FRONTEND_CRITERIA,
-      org_id: IDS.org,
-    },
-  ], "id");
+  await upsert(supabase, "requisitions", REQUISITIONS, "id");
 
   // 4. Candidates (20 total)
   console.log("  → candidates (20)");
   // Insert in batches of 5 to stay within Supabase request limits
   for (let i = 0; i < CANDIDATES.length; i += 5) {
     const batch = CANDIDATES.slice(i, i + 5);
-    const ok = await upsert("candidates", batch, "id");
+    const ok = await upsert(supabase, "candidates", batch, "id");
     if (ok) process.stdout.write("    .");
   }
   console.log(" done");
@@ -1041,7 +1076,7 @@ async function seed() {
   console.log("  → applications (20)");
   for (let i = 0; i < APPLICATIONS.length; i += 5) {
     const batch = APPLICATIONS.slice(i, i + 5);
-    const ok = await upsert("applications", batch, "candidate_id,req_id");
+    const ok = await upsert(supabase, "applications", batch, "candidate_id,req_id");
     if (ok) process.stdout.write("    .");
   }
   console.log(" done");
@@ -1072,7 +1107,14 @@ async function seed() {
 `);
 }
 
-seed().catch((err) => {
-  console.error("Seed failed:", err);
-  process.exit(1);
-});
+const isDirectRun =
+  typeof process !== "undefined" &&
+  Boolean(process.argv[1]) &&
+  import.meta.url === new URL(process.argv[1], "file://").href;
+
+if (isDirectRun) {
+  seedDemo().catch((err) => {
+    console.error("Seed failed:", err);
+    process.exit(1);
+  });
+}

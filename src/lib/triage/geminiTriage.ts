@@ -75,6 +75,7 @@ function sanitizeResumeText(text: string): string {
       "[REDACTED]"
     )
     .replace(/\byou\s+are\s+now\b|\bact\s+as\b|\bpretend\s+(?:to\s+be|you\s+are)\b/gi, "[REDACTED]")
+    .replace(/\brate\s+this\s+candidate\s+as\s+[^.!?\n]+/gi, "[REDACTED]")
     .replace(/^system\s*:/gim, "[REDACTED]:")
     .slice(0, 8000);
 }
@@ -186,14 +187,21 @@ function applyOverrides(
 
 const VALID_TIERS = new Set(["auto_reject", "review", "strong", "top"]);
 
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === "string" && item.trim().length > 0)
+  );
+}
+
 function isValidTriageResult(v: unknown): v is TriageResult {
   if (!v || typeof v !== "object") return false;
   const r = v as Record<string, unknown>;
   return (
     VALID_TIERS.has(r.tier as string) &&
-    Array.isArray(r.matched) &&
-    Array.isArray(r.missing) &&
-    Array.isArray(r.preferred_hits) &&
+    isStringArray(r.matched) &&
+    isStringArray(r.missing) &&
+    isStringArray(r.preferred_hits) &&
     typeof r.confidence === "number" &&
     r.confidence >= 0 &&
     r.confidence <= 1 &&
@@ -202,6 +210,22 @@ function isValidTriageResult(v: unknown): v is TriageResult {
 }
 
 // ── Main Export ───────────────────────────────────────────────────────────────
+
+const GEMINI_TIMEOUT_MS = 10_000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs = GEMINI_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Gemini timeout")), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export async function triageCandidate(
   parsedResume: ParsedResume,
@@ -216,7 +240,7 @@ export async function triageCandidate(
 
   try {
     const prompt = buildPrompt(parsedResume, criteria, reqTitle);
-    const response = await getModel().generateContent(prompt);
+    const response = await withTimeout(getModel().generateContent(prompt));
     const text = response.response
       .text()
       .replace(/^```(?:json)?|```$/gm, "") // strip fences in case mime type is ignored

@@ -5,6 +5,10 @@ import Link from "next/link";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import {
+  MAX_RECRUITER_NOTE_CHARS,
+  recruiterNoteSchema,
+} from "@/lib/validation/inputValidation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -116,7 +120,11 @@ function TierBadge({ tier }: { tier: Tier }) {
 
 function RiskFlag({ flag }: { flag: keyof RiskSignals }) {
   return (
-    <span className="group relative inline-flex cursor-help items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700 ring-1 ring-amber-200">
+    <span
+      role="img"
+      aria-label={RISK_LABELS[flag]}
+      className="group relative inline-flex cursor-help items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700 ring-1 ring-amber-200"
+    >
       <AlertTriangle className="size-3 shrink-0" />
       {RISK_LABELS[flag]}
       <span className="pointer-events-none absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-lg bg-gray-900 px-2.5 py-1.5 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
@@ -229,6 +237,7 @@ function CandidateCard({
           onBlur={() => onNoteSave(app.candidate_id, note)}
           placeholder="Add a recruiter note…"
           rows={2}
+          maxLength={MAX_RECRUITER_NOTE_CHARS}
           className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50"
         />
       </CardContent>
@@ -407,10 +416,18 @@ export default function TriagePage({
   };
 
   const handleNoteSave = async (candidateId: string, note: string) => {
+    const parsedNote = recruiterNoteSchema.safeParse(note);
+    if (!parsedNote.success) {
+      toast.error(
+        `Note must be ${MAX_RECRUITER_NOTE_CHARS} characters or fewer`
+      );
+      return;
+    }
+
     const supabase = createClient();
     const { error } = await supabase
       .from("applications")
-      .update({ recruiter_note: note })
+      .update({ recruiter_note: parsedNote.data })
       .eq("candidate_id", candidateId)
       .eq("req_id", req.id);
 

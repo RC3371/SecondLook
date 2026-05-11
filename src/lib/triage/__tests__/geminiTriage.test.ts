@@ -308,6 +308,27 @@ describe("error handling — returns FALLBACK without throwing", () => {
     expect(result.confidence).toBe(0);
   });
 
+  it("8e. matched/missing/preferred_hits arrays containing non-strings → FALLBACK", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      response: {
+        text: () =>
+          JSON.stringify({
+            tier: "strong",
+            matched: ["Python", { injected: true }],
+            missing: [],
+            preferred_hits: ["Kubernetes"],
+            confidence: 0.85,
+            summary: "Looks promising",
+          }),
+      },
+    });
+
+    const result = await triageCandidate(BASE_RESUME, BASE_CRITERIA, "Error Test 8e");
+
+    expect(result.tier).toBe("review");
+    expect(result.confidence).toBe(0);
+  });
+
   it("8d. response with markdown fences is stripped before JSON parse", async () => {
     // The code strips ```json...``` fences before parsing.
     // This test verifies that fence-wrapped JSON is handled gracefully.

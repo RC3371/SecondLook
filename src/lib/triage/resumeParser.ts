@@ -36,11 +36,16 @@ const MONTH_NAMES: Record<string, number> = {
 const US_STATES =
   "AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC";
 
+const PROMPT_INJECTION_SANITIZE_RE =
+  /\b(?:ignore|disregard|forget|bypass|override)\b[\s\S]{0,80}?\b(?:instructions?|prompt|context|rules?|directions?|guidelines?)\b|\byou\s+are\s+now\b|\bact\s+as\b|\bpretend\s+(?:to\s+be|you\s+are)\b|^system\s*:\s*|<!--[\s\S]*?inject[\s\S]*?-->/gim;
+
 // ── PII Stripping ─────────────────────────────────────────────────────────────
 
 function stripPII(text: string): string {
-  return (
+  const piiStripped =
     text
+      // Remove null bytes that can break downstream parsing/prompt construction.
+      .replace(/\x00/g, "")
       // Emails
       .replace(/\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/g, "[EMAIL]")
       // Phone numbers: (555) 123-4567 | 555-123-4567 | 555.123.4567 | +1 555 123 4567
@@ -76,8 +81,9 @@ function stripPII(text: string): string {
           "g"
         ),
         "[LOCATION]"
-      )
-  );
+      );
+
+  return piiStripped.replace(PROMPT_INJECTION_SANITIZE_RE, "[REDACTED]");
 }
 
 // ── Date Range Parsing ────────────────────────────────────────────────────────
@@ -356,14 +362,15 @@ const GENERIC_ACTION_VERBS = [
 ];
 
 function detectRiskSignals(
-  rawText: string,
+  sourceText: string,
+  sanitizedText: string,
   skills: string[],
   wordCount: number
 ): RiskSignals {
-  const lower = rawText.toLowerCase();
+  const lower = sanitizedText.toLowerCase();
 
   // Prompt injection: instruction-hijacking patterns
-  const prompt_injection = PROMPT_INJECTION_RE.test(rawText);
+  const prompt_injection = PROMPT_INJECTION_RE.test(sourceText);
 
   // Keyword stuffing: skills section bloated with minimal prose
   const keyword_stuffing = skills.length > 25;
@@ -375,7 +382,7 @@ function detectRiskSignals(
   );
   const buzzwordDensity = wordCount > 0 ? (buzzwordCount / wordCount) * 100 : 0;
 
-  const bulletLines = rawText
+  const bulletLines = sanitizedText
     .split(/\r?\n/)
     .filter((l) => BULLET_RE.test(l));
   const genericStartCount = bulletLines.filter((l) =>
@@ -452,7 +459,7 @@ export function parseResume(
   const employment_gaps = detectEmploymentGaps(workEntries);
   const education = extractEducation(raw_text);
   const skills = extractSkills(raw_text);
-  const risks = detectRiskSignals(raw_text, skills, wordCount);
+  const risks = detectRiskSignals(rawText, raw_text, skills, wordCount);
 
   const parsed: ParsedResume = {
     years_of_experience,

@@ -100,7 +100,7 @@ function NewRole() {
                                             <div key={idx} className="flex items-center justify-between text-sm text-zinc-300">
                                                 <div className="flex items-center gap-2">
                                                     <div className="icon-file-text text-zinc-500 text-xs"></div>
-                                                    {file}
+                                                    {file.name}
                                                 </div>
                                                 <button onClick={(e) => {
                                                     e.stopPropagation();
@@ -147,7 +147,7 @@ function NewRole() {
                                     const job = await window.api.createJob({ title, description, department })
                                     if (files.length > 0) {
                                         const fd = new FormData()
-                                        fd.append('file', new File([], files[0]))
+                                        fd.append('file', files[0])
                                         fd.append('job_id', job.id)
                                         await window.api.uploadImport(fd)
                                     }

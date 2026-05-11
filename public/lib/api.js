@@ -143,6 +143,4 @@ const api = {
   getSettings, saveSettings, getBooking, confirmBooking
 }
 
-if (typeof window !== 'undefined') window.api = api
-
-export default api
+window.api = api

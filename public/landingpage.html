@@ -1,16 +1,20 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scheduling - Second Look</title>
+    <title>Second Look - AI-Powered Recruiting</title>
+    <meta name="description"
+        content="Hire smarter and move faster with AI-powered candidate triage and automated scheduling.">
+    <meta name="keywords" content="recruiting, AI triage, applicant tracking, ATS, hiring">
     <script src="https://resource.trickle.so/vendor_lib/unpkg/react@18/umd/react.production.min.js"></script>
     <script src="https://resource.trickle.so/vendor_lib/unpkg/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://resource.trickle.so/vendor_lib/unpkg/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://resource.trickle.so/vendor_lib/unpkg/lucide-static@0.516.0/font/lucide.css" rel="stylesheet">
     <style type="text/tailwindcss">
-    @layer theme {
+        @layer theme {
         :root {
             --bg-base: theme('colors.zinc.950');
             --bg-surface: theme('colors.zinc.900');
@@ -26,24 +30,20 @@
         }
     }
     @layer components {
-        .card {
-            @apply bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl overflow-hidden;
-        }
         .btn-primary {
-            @apply px-4 py-2 bg-zinc-100 text-zinc-900 font-medium rounded-lg hover:bg-white transition-colors text-sm;
+            @apply px-5 py-2.5 bg-zinc-100 text-zinc-900 font-medium rounded-lg hover:bg-white transition-colors text-sm;
         }
         .btn-secondary {
-            @apply px-4 py-2 bg-zinc-800 text-zinc-100 font-medium rounded-lg hover:bg-zinc-700 transition-colors text-sm border border-zinc-700;
+            @apply px-5 py-2.5 bg-zinc-900 text-zinc-100 font-medium rounded-lg hover:bg-zinc-800 transition-colors text-sm border border-zinc-800;
         }
     }
     </style>
 </head>
-<body class="overflow-hidden">
+
+<body class="overflow-x-hidden">
     <div id="root"></div>
-    <script type="text/babel" src="lib/api.js"></script>
     <script type="text/babel" src="components/shared/ErrorBoundary.js"></script>
-    <script type="text/babel" src="components/layout/Sidebar.js"></script>
-    <script type="text/babel" src="components/layout/PageShell.js"></script>
-    <script type="text/babel" src="scheduling-app.js"></script>
+    <script type="text/babel" src="landingpage-app.js"></script>
 </body>
+
 </html>

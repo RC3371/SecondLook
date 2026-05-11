@@ -1,6 +1,20 @@
 function Sidebar() {
     const currentPath = window.location.pathname;
-    
+    const [user, setUser] = React.useState(null);
+
+    React.useEffect(() => {
+        fetch('/api/me')
+            .then(res => {
+                if (res.status === 401) {
+                    window.location.href = '/sign-in';
+                    return null;
+                }
+                return res.json();
+            })
+            .then(data => { if (data) setUser(data); })
+            .catch(() => { window.location.href = '/sign-in'; });
+    }, []);
+
     const unreadReferrals = 0;
 
     const navItems = [
@@ -8,7 +22,6 @@ function Sidebar() {
         { name: "Talent Pool", icon: "users", path: "talent-pool.html", match: ["talent-pool.html"] },
         { name: "Referrals", icon: "inbox", path: "referrals.html", match: ["referrals.html"], badge: unreadReferrals > 0 ? unreadReferrals : null },
         { name: "Scheduling", icon: "calendar", path: "scheduling.html", match: ["scheduling.html"] },
-        { name: "Analytics", icon: "chart-bar", path: "analytics.html", match: ["analytics.html"] },
         { name: "Settings", icon: "settings", path: "settings.html", match: ["settings.html"] }
     ];
 
@@ -48,10 +61,15 @@ function Sidebar() {
             <div className="p-4 border-t border-zinc-900">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium">JD</div>
+                        {user?.imageUrl
+                            ? <img src={user.imageUrl} className="w-8 h-8 rounded-full object-cover" />
+                            : <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium">
+                                {user ? (user.firstName?.[0] ?? '') + (user.lastName?.[0] ?? '') || '?' : '…'}
+                              </div>
+                        }
                         <div className="text-sm">
-                            <div className="text-zinc-100 font-medium">Jane Doe</div>
-                            <div className="text-zinc-500 text-xs">Recruiting Lead</div>
+                            <div className="text-zinc-100 font-medium">{user?.fullName ?? '…'}</div>
+                            <div className="text-zinc-500 text-xs truncate max-w-[120px]">{user?.email ?? ''}</div>
                         </div>
                     </div>
                     <a href="/sign-out" className="text-zinc-500 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-zinc-900" title="Logout">

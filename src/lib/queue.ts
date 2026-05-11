@@ -11,7 +11,7 @@ function createConnection() {
   })
 }
 
-// Lazy singletons — nothing connects until first use
+// Lazy singletons — nothing connects until first uses
 let _connection: IORedis | null = null
 let _triageQueue: Queue | null = null
 

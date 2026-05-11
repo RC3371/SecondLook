@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { auth } from '@clerk/nextjs/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { checkRateLimit } from '@/lib/security/rateLimit'
+import { getSupabaseOrgId } from '@/lib/getSupabaseOrgId'
 import { uploadFormInputSchema } from '@/lib/validation/inputValidation'
 
 export async function POST(req: NextRequest) {
@@ -32,12 +33,17 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createClient()
 
-  // Enforce org isolation: req_id must belong to the caller's Clerk org.
+  const supabaseOrgId = await getSupabaseOrgId(supabase, orgId)
+  if (!supabaseOrgId) {
+    return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+  }
+
+  // Enforce org isolation: req_id must belong to the caller's org.
   const { data: reqRecord, error: reqError } = await supabase
     .from('requisitions')
     .select('id')
     .eq('id', reqId)
-    .eq('org_id', orgId)
+    .eq('org_id', supabaseOrgId)
     .single()
 
   if (reqError || !reqRecord) {

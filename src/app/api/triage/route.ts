@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { processBatch } from "@/lib/triage/batchTriage";
 import { checkRateLimit } from "@/lib/security/rateLimit";
+import { getSupabaseOrgId } from "@/lib/getSupabaseOrgId";
 import {
   jobTriageRequestSchema,
   type ApplicationStatus,
@@ -69,7 +70,11 @@ export async function POST(req: NextRequest) {
   // Scope to the authenticated org when called from the browser.
   // Server-to-server calls trust the job_posting_id from the import route.
   if (orgId) {
-    jobQuery = jobQuery.eq("org_id", orgId) as typeof jobQuery;
+    const supabaseOrgId = await getSupabaseOrgId(supabase, orgId);
+    if (!supabaseOrgId) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+    jobQuery = jobQuery.eq("org_id", supabaseOrgId) as typeof jobQuery;
   }
 
   const { data: job, error: jobError } = await jobQuery.single();

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseOrgId } from "@/lib/getSupabaseOrgId";
 import { referralSendSchema } from "@/lib/validation/inputValidation";
 
 export async function POST(req: NextRequest) {
@@ -26,11 +27,16 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
 
+    const supabaseOrgId = await getSupabaseOrgId(supabase, orgId);
+    if (!supabaseOrgId) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
     const { data: sender } = await supabase
       .from("recruiters")
       .select("id")
       .eq("clerk_user_id", userId)
-      .eq("org_id", orgId)
+      .eq("org_id", supabaseOrgId)
       .single();
 
     if (!sender) {
@@ -41,7 +47,7 @@ export async function POST(req: NextRequest) {
       .from("recruiters")
       .select("id")
       .eq("id", to_recruiter_id)
-      .eq("org_id", orgId)
+      .eq("org_id", supabaseOrgId)
       .single();
 
     if (!targetRecruiter) {
@@ -55,7 +61,7 @@ export async function POST(req: NextRequest) {
       .from("requisitions")
       .select("id")
       .eq("id", req_id)
-      .eq("org_id", orgId)
+      .eq("org_id", supabaseOrgId)
       .single();
 
     if (!reqRecord) {
@@ -74,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { error } = await supabase.from("referrals").insert({
-      org_id: orgId,
+      org_id: supabaseOrgId,
       from_recruiter_id: (sender as { id: string }).id,
       to_recruiter_id,
       req_id,

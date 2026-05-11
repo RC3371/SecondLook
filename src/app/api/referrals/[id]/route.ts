@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseOrgId } from "@/lib/getSupabaseOrgId";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -16,11 +17,17 @@ export async function GET(_req: Request, context: RouteContext) {
 
   try {
     const supabase = await createClient();
+
+    const supabaseOrgId = await getSupabaseOrgId(supabase, orgId);
+    if (!supabaseOrgId) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
     const { data } = await supabase
       .from("referrals")
       .select("id, status, candidate_id, req_id, to_recruiter_id")
       .eq("id", id)
-      .eq("org_id", orgId)
+      .eq("org_id", supabaseOrgId)
       .single();
 
     if (!data) {

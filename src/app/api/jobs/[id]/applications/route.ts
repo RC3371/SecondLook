@@ -1,5 +1,6 @@
 import { auth } from '@clerk/nextjs/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getSupabaseOrgId } from '@/lib/getSupabaseOrgId'
 import { type ApplicationStatus } from '@/lib/validation/inputValidation'
 import { NextResponse } from 'next/server'
 
@@ -20,12 +21,18 @@ export async function GET(
   const supabase = createAdminClient()
 
   try {
-    // 2. Verify the job posting belongs to this org
+    // 2. Resolve the Supabase UUID for this Clerk org
+    const supabaseOrgId = await getSupabaseOrgId(supabase, orgId)
+    if (!supabaseOrgId) {
+      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+    }
+
+    // 3. Verify the job posting belongs to this org
     const { data: job, error: jobError } = await supabase
       .from('job_postings')
       .select('id, title, status, criteria, created_at')
       .eq('id', jobId)
-      .eq('org_id', orgId)
+      .eq('org_id', supabaseOrgId)
       .single()
 
     if (jobError || !job) {

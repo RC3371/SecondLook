@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getSupabaseOrgId } from "@/lib/getSupabaseOrgId";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -17,11 +18,16 @@ export async function POST(_req: Request, context: RouteContext) {
   try {
     const supabase = await createClient();
 
+    const supabaseOrgId = await getSupabaseOrgId(supabase, orgId);
+    if (!supabaseOrgId) {
+      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+    }
+
     const { data: recruiter } = await supabase
       .from("recruiters")
       .select("id")
       .eq("clerk_user_id", userId)
-      .eq("org_id", orgId)
+      .eq("org_id", supabaseOrgId)
       .single();
 
     if (!recruiter) {
@@ -32,7 +38,7 @@ export async function POST(_req: Request, context: RouteContext) {
       .from("referrals")
       .select("id, to_recruiter_id, status")
       .eq("id", id)
-      .eq("org_id", orgId)
+      .eq("org_id", supabaseOrgId)
       .single();
 
     if (!referral) {
@@ -51,7 +57,7 @@ export async function POST(_req: Request, context: RouteContext) {
       .from("referrals")
       .update({ status: "accepted" })
       .eq("id", id)
-      .eq("org_id", orgId);
+      .eq("org_id", supabaseOrgId);
 
     if (error) {
       return NextResponse.json({ error: "Internal server error" }, { status: 500 });

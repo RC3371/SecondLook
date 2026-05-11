@@ -2,6 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureProfile } from '@/lib/ensure-profile'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const { auth } = await import('@clerk/nextjs/server')

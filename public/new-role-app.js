@@ -46,11 +46,11 @@ function NewRole() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-zinc-400 mb-1.5">Job Title</label>
-                                        <input type="text" className="input-field" placeholder="e.g. Senior Frontend Engineer" />
+                                        <input type="text" className="input-field" placeholder="e.g. Senior Frontend Engineer" value={title} onChange={(e) => setTitle(e.target.value)} />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-zinc-400 mb-1.5">Department</label>
-                                        <select className="input-field appearance-none">
+                                        <select className="input-field appearance-none" value={department} onChange={(e) => setDepartment(e.target.value)}>
                                             <option>Engineering</option>
                                             <option>Design</option>
                                             <option>Product</option>
@@ -60,7 +60,7 @@ function NewRole() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-zinc-400 mb-1.5">Job Description</label>
-                                    <textarea className="input-field h-32 resize-none" placeholder="Paste full job description here..."></textarea>
+                                    <textarea className="input-field h-32 resize-none" placeholder="Paste full job description here..." value={description} onChange={(e) => setDescription(e.target.value)}></textarea>
                                 </div>
                             </div>
                         </section>

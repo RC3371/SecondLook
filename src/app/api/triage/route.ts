@@ -7,6 +7,7 @@ import {
   hasSafeJsonDepth,
   requisitionCriteriaSchema,
   triageRequestSchema,
+  type ApplicationStatus,
 } from "@/lib/validation/inputValidation";
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
       .from("applications")
       .select("applicant_id")
       .eq("job_posting_id", req_id)
-      .eq("status", "consent_given")
+      .eq("status", "consent_given" satisfies ApplicationStatus)
       .in("applicant_id", uniqueCandidateIds);
 
     if (consentError) {

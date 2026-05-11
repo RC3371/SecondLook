@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureProfile } from '@/lib/ensure-profile'
+import { type ApplicationStatus } from '@/lib/validation/inputValidation'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -51,7 +52,7 @@ export async function GET() {
         recruiter: (job.recruiter as any)?.full_name,
         department: job.criteria?.department || 'General',
         applicantsCount: jobApps.length,
-        newApplicantsCount: jobApps.filter((a: any) =>
+        newApplicantsCount: jobApps.filter((a: { status: ApplicationStatus }) =>
           a.status === 'pending_consent' || a.status === 'consent_given'
         ).length,
         stats: {

@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureProfile } from '@/lib/ensure-profile'
 import { parseImportFile, extractNameFromText, extractEmailFromText } from '@/lib/parseImport'
+import { type ApplicationStatus } from '@/lib/validation/inputValidation'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -72,7 +73,7 @@ export async function POST(req: Request) {
     const applicationRows = inserted.map((row) => ({
       applicant_id: row.id,
       job_posting_id: jobId,
-      status: 'pending_consent',
+      status: 'pending_consent' satisfies ApplicationStatus,
       consent_expires_at: consentExpiresAt,
     }))
 

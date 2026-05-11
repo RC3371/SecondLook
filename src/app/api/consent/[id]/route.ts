@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-import { consentDecisionSchema, safeIdSchema } from '@/lib/validation/inputValidation'
+import { consentDecisionSchema, safeIdSchema, type ApplicationStatus } from '@/lib/validation/inputValidation'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +51,7 @@ export async function POST(
     return NextResponse.json({ error: 'Consent window has expired' }, { status: 410 })
   }
 
-  const newStatus = decision === 'given' ? 'consent_given' : 'consent_declined'
+  const newStatus: ApplicationStatus = decision === 'given' ? 'consent_given' : 'consent_declined'
 
   const { error: updateError } = await supabase
     .from('applications')

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { APPLICATION_STATUSES, type ApplicationStatus } from '@/lib/validation/inputValidation'
 import { NextResponse } from 'next/server'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -67,9 +68,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     if (action === 'update_status') {
       const { status } = data
+      if (!APPLICATION_STATUSES.includes(status as ApplicationStatus)) {
+        return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 })
+      }
       const { error } = await supabase
         .from('applications')
-        .update({ status })
+        .update({ status: status as ApplicationStatus })
         .eq('id', id)
       if (error) return NextResponse.json({ error }, { status: 500 })
       return NextResponse.json({ ok: true })
@@ -79,7 +83,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const { stage } = data || {}
       const { error } = await supabase
         .from('applications')
-        .update({ status: 'advanced', decided_at: new Date().toISOString() })
+        .update({ status: 'referred' satisfies ApplicationStatus, decided_at: new Date().toISOString() })
         .eq('id', id)
       if (error) return NextResponse.json({ error }, { status: 500 })
       if (stage) {

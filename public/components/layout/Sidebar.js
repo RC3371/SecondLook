@@ -1,8 +1,7 @@
 function Sidebar() {
     const currentPath = window.location.pathname;
     
-    // Calculate unread referrals for the badge
-    const unreadReferrals = typeof MOCK_REFERRALS !== 'undefined' ? MOCK_REFERRALS.filter(r => r.status === 'pending').length : 0;
+    const unreadReferrals = 0;
 
     const navItems = [
         { name: "Open Roles", icon: "briefcase", path: "index.html", match: ["/", "index.html"] },
@@ -55,7 +54,7 @@ function Sidebar() {
                             <div className="text-zinc-500 text-xs">Recruiting Lead</div>
                         </div>
                     </div>
-                    <a href="/login.html" className="text-zinc-500 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-zinc-900" title="Logout">
+                    <a href="/sign-out" className="text-zinc-500 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-zinc-900" title="Logout">
                         <div className="icon-log-out text-sm"></div>
                     </a>
                 </div>

@@ -1,4 +1,4 @@
-import { Queue, Worker } from 'bullmq'
+import { Queue } from 'bullmq'
 import IORedis from 'ioredis'
 
 const connection = new IORedis(process.env.UPSTASH_REDIS_REST_URL!, {
@@ -8,6 +8,5 @@ const connection = new IORedis(process.env.UPSTASH_REDIS_REST_URL!, {
 })
 
 export const triageQueue = new Queue('triage', { connection })
-export const matchingQueue = new Queue('cross-team-matching', { connection })
 
 export { connection }

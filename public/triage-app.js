@@ -1,20 +1,9 @@
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, errorInfo) { console.error('Error:', error, errorInfo); }
-  render() {
-    if (this.state.hasError) return <div className="p-8 text-red-500">Something went wrong.</div>;
-    return this.props.children;
-  }
-}
 
 function TriageView() {
     const [selectedAppId, setSelectedAppId] = React.useState(null);
-    const job = typeof MOCK_JOBS !== 'undefined' ? MOCK_JOBS[0] : { id: 'job-1', title: 'Job' };
-    const [applications, setApplications] = React.useState(typeof MOCK_APPLICATIONS !== 'undefined' ? MOCK_APPLICATIONS : []);
+    const urlParams = new URLSearchParams(window.location.search);
+    const job = { id: urlParams.get('jobId') || '', title: 'Job' };
+    const [applications, setApplications] = React.useState([]);
     const [appsLoading, setAppsLoading] = React.useState(false);
 
     const getTierColor = (tier) => {
@@ -186,7 +175,7 @@ function TriageView() {
                 {/* Right Drawer */}
                 {selectedAppId && (
                     <ApplicantDrawer 
-                        application={MOCK_APPLICATIONS.find(a => a.id === selectedAppId)}
+                        application={applications.find(a => a.id === selectedAppId)}
                         onClose={() => setSelectedAppId(null)}
                     />
                 )}

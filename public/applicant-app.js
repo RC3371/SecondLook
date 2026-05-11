@@ -1,24 +1,9 @@
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, errorInfo) { console.error('Error:', error, errorInfo); }
-  render() {
-    if (this.state.hasError) return <div className="p-8 text-red-500">Something went wrong.</div>;
-    return this.props.children;
-  }
-}
 
 function ApplicantProfile() {
     const urlParams = new URLSearchParams(window.location.search);
     const appId = urlParams.get('id') || 'app-1';
-    const [application, setApplication] = React.useState(() => {
-        const fromMock = (typeof MOCK_APPLICATIONS !== 'undefined') ? MOCK_APPLICATIONS.find(a => a.id === appId) || MOCK_APPLICATIONS[0] : null
-        return fromMock
-    });
-    const job = typeof MOCK_JOBS !== 'undefined' ? (MOCK_JOBS.find(j => j.id === (application?.jobId)) || MOCK_JOBS[0]) : { id: 'job-1', title: 'Job' };
+    const [application, setApplication] = React.useState(null);
+    const job = { id: application?.jobId || '', title: application?.jobTitle || 'Job' };
 
     React.useEffect(() => {
         async function load() {

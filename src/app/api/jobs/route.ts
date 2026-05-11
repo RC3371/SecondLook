@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const { auth } = await import('@clerk/nextjs/server')
     const { userId } = await auth()
-    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!userId) return NextResponse.json({ error: 'No Clerk session found' }, { status: 401 })
 
     const supabase = createAdminClient()
 
@@ -17,10 +17,9 @@ export async function GET() {
       .single()
 
     if (!profile) {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 403 })
+      return NextResponse.json({ error: `User ${userId} has no profile in Supabase` }, { status: 403 })
     }
 
-    // Consolidated query using embeddings. 
     // Note the '!recruiter_id' to disambiguate multiple relations to 'profiles'
     const { data: jobPostings, error } = await supabase
       .from('job_postings')

@@ -21,7 +21,6 @@ function Sidebar() {
         { name: "Open Roles", icon: "briefcase", path: "index.html", match: ["/", "index.html"] },
         { name: "Talent Pool", icon: "users", path: "talent-pool.html", match: ["talent-pool.html"] },
         { name: "Referrals", icon: "inbox", path: "referrals.html", match: ["referrals.html"], badge: unreadReferrals > 0 ? unreadReferrals : null },
-        { name: "Scheduling", icon: "calendar", path: "scheduling.html", match: ["scheduling.html"] },
         { name: "Settings", icon: "settings", path: "settings.html", match: ["settings.html"] }
     ];
 

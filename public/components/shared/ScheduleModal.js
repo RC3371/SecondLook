@@ -1,11 +1,10 @@
 function ScheduleModal({ application, onClose, onConfirm }) {
-    const [mode, setMode] = React.useState('link'); // 'link' or 'propose'
-    const [proposedTimes, setProposedTimes] = React.useState([
-        { id: 1, date: '2026-05-11', time: '10:00' },
-        { id: 2, date: '2026-05-12', time: '14:30' }
-    ]);
+    const [mode, setMode] = React.useState('propose'); // 'link' or 'propose'
+    const [proposedTimes, setProposedTimes] = React.useState([]);
     const [newDate, setNewDate] = React.useState('2026-05-13');
     const [newTime, setNewTime] = React.useState('11:00');
+    const [isSending, setIsSending] = React.useState(false);
+    const [bookingUrl, setBookingUrl] = React.useState(null);
 
     const handleAddCustomTime = () => {
         if (!newDate || !newTime) return;
@@ -14,6 +13,28 @@ function ScheduleModal({ application, onClose, onConfirm }) {
 
     const handleRemoveTime = (id) => {
         setProposedTimes(proposedTimes.filter(t => t.id !== id));
+    };
+
+    const handleSendInvites = async () => {
+        if (proposedTimes.length === 0) return;
+        setIsSending(true);
+        try {
+            const result = await window.api.createInvitation({
+                applicationId: application?.id,
+                proposedSlots: proposedTimes.map(({ date, time }) => ({ date, time })),
+            });
+            setBookingUrl(window.location.origin + result.bookingUrl);
+        } catch (err) {
+            console.error('Failed to create invitation:', err);
+            if (window.showToast) window.showToast('Failed to create invitation.', 'error');
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    const handleCopyLink = () => {
+        navigator.clipboard.writeText(bookingUrl);
+        if (window.showToast) window.showToast('Booking link copied!', 'success');
     };
 
     return (
@@ -78,7 +99,21 @@ function ScheduleModal({ application, onClose, onConfirm }) {
                     </div>
 
                     <div className="flex-1 overflow-y-auto pr-2 pb-20">
-                        {mode === 'link' ? (
+                        {bookingUrl ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center py-8 animate-in fade-in">
+                                <div className="w-14 h-14 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
+                                    <div className="icon-check text-emerald-500 text-2xl"></div>
+                                </div>
+                                <h3 className="text-lg font-semibold text-zinc-100 mb-2">Invite Created!</h3>
+                                <p className="text-zinc-400 text-sm mb-6">Share this link with {application?.candidate?.name || 'the candidate'} so they can book a time.</p>
+                                <div className="w-full flex gap-2">
+                                    <input type="text" readOnly value={bookingUrl} className="flex-1 bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-300 text-xs focus:outline-none" />
+                                    <button onClick={handleCopyLink} className="btn-primary bg-blue-500 text-blue-950 hover:bg-blue-400 px-4 flex items-center gap-2">
+                                        <div className="icon-copy text-sm"></div> Copy
+                                    </button>
+                                </div>
+                            </div>
+                        ) : mode === 'link' ? (
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-zinc-400 mb-1.5">Interview Type</label>
@@ -139,10 +174,16 @@ function ScheduleModal({ application, onClose, onConfirm }) {
                     </div>
 
                     <div className="absolute bottom-6 right-6 left-6 flex justify-end gap-3 pt-4 border-t border-zinc-800 bg-zinc-900">
-                        <button onClick={onClose} className="btn-secondary">Cancel</button>
-                        <button onClick={() => onConfirm(mode)} className="btn-primary bg-blue-500 text-blue-950 hover:bg-blue-400">
-                            {mode === 'link' ? 'Send Link' : 'Send Invites'}
-                        </button>
+                        <button onClick={onClose} className="btn-secondary">{bookingUrl ? 'Done' : 'Cancel'}</button>
+                        {!bookingUrl && (
+                            <button
+                                onClick={mode === 'propose' ? handleSendInvites : () => onConfirm(mode)}
+                                disabled={mode === 'propose' && (isSending || proposedTimes.length === 0)}
+                                className="btn-primary bg-blue-500 text-blue-950 hover:bg-blue-400 disabled:opacity-50"
+                            >
+                                {mode === 'link' ? 'Send Link' : (isSending ? 'Creating...' : 'Send Invites')}
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

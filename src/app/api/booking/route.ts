@@ -33,15 +33,40 @@ export async function POST(req: Request) {
     }
 
     const supabase = createAdminClient()
-    const { error } = await supabase
+
+    // Fetch invitation to get application_id and proposed_slots
+    const { data: invitation, error: fetchError } = await supabase
+      .from('interview_invitations')
+      .select('id, application_id, proposed_slots')
+      .eq('token', token)
+      .single()
+
+    if (fetchError || !invitation) {
+      return NextResponse.json({ error: 'Invalid or expired booking link' }, { status: 404 })
+    }
+
+    const { error: updateError } = await supabase
       .from('interview_invitations')
       .update({ confirmed_slot_id: slotId, status: 'confirmed' })
       .eq('token', token)
 
-    if (error) {
-      console.error('Supabase error confirming booking:', error)
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (updateError) {
+      console.error('Supabase error confirming booking:', updateError)
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
+
+    // Auto-create interviews record from the confirmed slot
+    const slotIndex = Number(slotId) - 1
+    const slot = (invitation.proposed_slots || [])[slotIndex]
+    if (slot?.date && slot?.time) {
+      const scheduledAt = new Date(`${slot.date}T${slot.time}`).toISOString()
+      await supabase.from('interviews').insert({
+        application_id: invitation.application_id,
+        scheduled_at: scheduledAt,
+        interview_type: 'Recruiter Screen',
+      })
+    }
+
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('Error in POST /api/booking:', err)

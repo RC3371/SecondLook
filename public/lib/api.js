@@ -135,6 +135,16 @@ async function confirmBooking(token, slotId) {
   return res.json()
 }
 
+async function createInvitation(payload) {
+  const res = await fetch('/api/invitations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  if (!res.ok) throw new Error('Failed to create invitation')
+  return res.json()
+}
+
 async function getTeam() {
   const res = await fetch('/api/team')
   if (!res.ok) throw new Error('Failed to fetch team')
@@ -176,7 +186,7 @@ const api = {
   fetchReferrals, createJob, uploadImport,
   createReferral, advanceApplication, addNote,
   searchCandidates, getInterviews, scheduleInterview,
-  getSettings, saveSettings, getBooking, confirmBooking,
+  getSettings, saveSettings, getBooking, confirmBooking, createInvitation,
   getTeam, inviteMember, changeMemberRole, removeMember,
 }
 

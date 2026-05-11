@@ -20,8 +20,16 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('referrals')
-      .select('id, from_application_id, to_job_posting_id, from_recruiter_id, status, match_score, message, created_at')
+      .select(`
+        id, status, match_score, message, created_at,
+        applications!from_application_id(
+          applicants!applicant_id(name)
+        ),
+        job_postings!to_job_posting_id(title),
+        profiles!from_recruiter_id(full_name)
+      `)
       .eq('to_recruiter_id', profile.id)
+      .eq('status', 'pending')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -29,7 +37,25 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data || [])
+    const shaped = (data || []).map((r: any) => {
+      const ageMs = Date.now() - new Date(r.created_at).getTime()
+      const ageHours = Math.floor(ageMs / 3_600_000)
+      const timeAgo = ageHours < 1 ? 'Just now'
+        : ageHours < 24 ? `${ageHours}h ago`
+        : `${Math.floor(ageHours / 24)}d ago`
+      return {
+        id: r.id,
+        status: r.status,
+        matchScore: r.match_score ?? 0,
+        reasoning: r.message ?? '',
+        timeAgo,
+        candidateName: r.applications?.applicants?.name ?? 'Unknown',
+        targetJob: r.job_postings?.title ?? 'Unknown',
+        sourceRecruiter: r.profiles?.full_name ?? 'Unknown',
+      }
+    })
+
+    return NextResponse.json(shaped)
   } catch (err) {
     console.error('Error in GET /api/referrals:', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })

@@ -181,6 +181,18 @@ async function removeMember(userId) {
   return res.json()
 }
 
+async function acceptReferral(id) {
+  const res = await fetch(`/api/referrals/${id}/accept`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to accept referral')
+  return res.json()
+}
+
+async function declineReferral(id) {
+  const res = await fetch(`/api/referrals/${id}/decline`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to decline referral')
+  return res.json()
+}
+
 const api = {
   fetchJobs, fetchJobApplications, fetchApplication, updateApplicationStatus,
   fetchReferrals, createJob, uploadImport,
@@ -188,6 +200,7 @@ const api = {
   searchCandidates, getInterviews, scheduleInterview,
   getSettings, saveSettings, getBooking, confirmBooking, createInvitation,
   getTeam, inviteMember, changeMemberRole, removeMember,
+  acceptReferral, declineReferral,
 }
 
 window.api = api

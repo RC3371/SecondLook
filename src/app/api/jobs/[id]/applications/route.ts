@@ -1,6 +1,5 @@
 import { auth } from '@clerk/nextjs/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getSupabaseOrgId } from '@/lib/getSupabaseOrgId'
 import { type ApplicationStatus } from '@/lib/validation/inputValidation'
 import { NextResponse } from 'next/server'
 
@@ -13,18 +12,25 @@ export async function GET(
   const { id: jobId } = await params
 
   // 1. Auth
-  const { userId, orgId } = await auth()
-  if (!userId || !orgId) {
+  const { userId } = await auth()
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const supabase = createAdminClient()
 
   try {
-    // 2. Resolve the Supabase UUID for this Clerk org
-    const supabaseOrgId = await getSupabaseOrgId(supabase, orgId)
-    if (!supabaseOrgId) {
-      return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
+    // 2. Resolve org via profile (same path used by import/route.ts and POST /api/jobs)
+    //    getSupabaseOrgId() looks up organizations.clerk_org_id, which can diverge from
+    //    profile.org_id when the org row predates the clerk_org_id column being populated.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('org_id')
+      .eq('clerk_user_id', userId)
+      .single()
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 403 })
     }
 
     // 3. Verify the job posting belongs to this org
@@ -32,10 +38,18 @@ export async function GET(
       .from('job_postings')
       .select('id, title, status, criteria, created_at')
       .eq('id', jobId)
-      .eq('org_id', supabaseOrgId)
+      .eq('org_id', profile.org_id)
       .single()
 
-    if (jobError || !job) {
+    if (jobError) {
+      // PGRST116 = no rows returned; anything else is a real DB error
+      if (jobError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+      }
+      console.error('Error fetching job posting', jobId, jobError)
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
+    if (!job) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 })
     }
 
@@ -76,7 +90,7 @@ export async function GET(
         status: a.status as ApplicationStatus,
         aiTier: a.ai_tier,
         matchScore: a.ai_score,
-        insights: reasoning.insights ?? [],
+        insights: reasoning.matched ?? [],
         aiSummary: reasoning.summary ?? null,
         consentExpiresAt: a.consent_expires_at ?? null,
         consentRespondedAt: a.consent_responded_at ?? null,

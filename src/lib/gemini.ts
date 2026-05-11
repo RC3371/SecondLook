@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
-export const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' })
+export const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
 // Cache layer — critical for demo reliability
 const responseCache = new Map<string, string>()

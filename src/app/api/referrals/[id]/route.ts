@@ -1,41 +1,47 @@
-import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { getSupabaseOrgId } from "@/lib/getSupabaseOrgId";
+import { auth } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 interface RouteContext {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>
 }
 
 export async function GET(_req: Request, context: RouteContext) {
-  const { orgId } = await auth();
-  if (!orgId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { userId } = await auth()
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { id } = await context.params;
+  const { id } = await context.params
+  const supabase = createAdminClient()
 
-  try {
-    const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('clerk_user_id', userId)
+    .single()
 
-    const supabaseOrgId = await getSupabaseOrgId(supabase, orgId);
-    if (!supabaseOrgId) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
-    }
-
-    const { data } = await supabase
-      .from("referrals")
-      .select("id, status, candidate_id, req_id, to_recruiter_id")
-      .eq("id", id)
-      .eq("org_id", supabaseOrgId)
-      .single();
-
-    if (!data) {
-      return NextResponse.json({ error: "Referral not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ referral: data });
-  } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  if (!profile) {
+    return NextResponse.json({ error: 'Profile not found' }, { status: 403 })
   }
+
+  const { data } = await supabase
+    .from('referrals')
+    .select(`
+      id, status, match_score, message, created_at, decided_at,
+      applications!from_application_id(
+        applicants!applicant_id(name, email)
+      ),
+      job_postings!to_job_posting_id(title),
+      profiles!from_recruiter_id(full_name)
+    `)
+    .eq('id', id)
+    .eq('to_recruiter_id', profile.id)
+    .single()
+
+  if (!data) {
+    return NextResponse.json({ error: 'Referral not found' }, { status: 404 })
+  }
+
+  return NextResponse.json({ referral: data })
 }

@@ -31,7 +31,7 @@ function getModel() {
     _client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   }
   return _client.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-2.5-flash",
     generationConfig: {
       // Forces the API to emit bare JSON — eliminates markdown fence stripping
       responseMimeType: "application/json",

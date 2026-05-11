@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { processBatch } from "@/lib/triage/batchTriage";
 import { checkRateLimit } from "@/lib/security/rateLimit";
-import { getSupabaseOrgId } from "@/lib/getSupabaseOrgId";
 import {
   jobTriageRequestSchema,
   type ApplicationStatus,
@@ -23,12 +22,14 @@ export async function POST(req: NextRequest) {
     process.env.TRIAGE_SECRET != null &&
     bearerToken === process.env.TRIAGE_SECRET;
 
+  let clerkUserId: string | null = null;
   let orgId: string | null = null;
   if (!isServerCall) {
-    const { orgId: clerkOrgId } = await auth();
-    if (!clerkOrgId) {
+    const { userId, orgId: clerkOrgId } = await auth();
+    if (!userId || !clerkOrgId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    clerkUserId = userId;
     orgId = clerkOrgId;
   }
 
@@ -69,12 +70,17 @@ export async function POST(req: NextRequest) {
 
   // Scope to the authenticated org when called from the browser.
   // Server-to-server calls trust the job_posting_id from the import route.
-  if (orgId) {
-    const supabaseOrgId = await getSupabaseOrgId(supabase, orgId);
-    if (!supabaseOrgId) {
-      return NextResponse.json({ error: "Organization not found" }, { status: 404 });
+  // Use profiles.org_id (same path as import/jobs routes) to avoid clerk_org_id mismatch.
+  if (clerkUserId) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("org_id")
+      .eq("clerk_user_id", clerkUserId)
+      .single();
+    if (!profile) {
+      return NextResponse.json({ error: "Profile not found" }, { status: 403 });
     }
-    jobQuery = jobQuery.eq("org_id", supabaseOrgId) as typeof jobQuery;
+    jobQuery = jobQuery.eq("org_id", profile.org_id) as typeof jobQuery;
   }
 
   const { data: job, error: jobError } = await jobQuery.single();

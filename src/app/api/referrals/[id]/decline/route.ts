@@ -17,7 +17,7 @@ export async function POST(_req: Request, context: RouteContext) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, org_id')
+    .select('id')
     .eq('clerk_user_id', userId)
     .single()
 
@@ -27,7 +27,7 @@ export async function POST(_req: Request, context: RouteContext) {
 
   const { data: referral } = await supabase
     .from('referrals')
-    .select('id, to_recruiter_id, status, from_application_id, to_job_posting_id')
+    .select('id, to_recruiter_id, status')
     .eq('id', id)
     .single()
 
@@ -43,38 +43,9 @@ export async function POST(_req: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Referral is not pending' }, { status: 400 })
   }
 
-  // Pull the applicant_id from the source application so we can create a new
-  // application in the target job's pipeline.
-  const { data: sourceApp } = await supabase
-    .from('applications')
-    .select('applicant_id')
-    .eq('id', referral.from_application_id)
-    .single()
-
-  let resultingApplicationId: string | null = null
-
-  if (sourceApp) {
-    const { data: newApp } = await supabase
-      .from('applications')
-      .insert({
-        applicant_id: sourceApp.applicant_id,
-        job_posting_id: referral.to_job_posting_id,
-        status: 'pending_consent',
-        consent_expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-      })
-      .select('id')
-      .single()
-
-    resultingApplicationId = newApp?.id ?? null
-  }
-
   const { error } = await supabase
     .from('referrals')
-    .update({
-      status: 'accepted',
-      decided_at: new Date().toISOString(),
-      resulting_application_id: resultingApplicationId,
-    })
+    .update({ status: 'declined', decided_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) {

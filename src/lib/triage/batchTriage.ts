@@ -134,21 +134,30 @@ async function upsertResult(
   supabase: SupabaseClient,
   result: ApplicationResult
 ): Promise<void> {
+  // UPDATE (not upsert) — the application row already exists from the import step.
+  // There is no unique constraint on (applicant_id, job_posting_id) so upsert would
+  // throw "there is no unique or exclusion constraint matching the ON CONFLICT spec".
   const { error } = await supabase
     .from("applications")
-    .upsert(
-      {
-        applicant_id: result.candidate_id,
-        job_posting_id: result.req_id,
-        ai_tier: result.tier,
-        ai_score: Math.round((result.triage_reasoning.confidence ?? 0) * 100),
-        ai_reasoning: result.triage_reasoning,
-        status: "triaged" satisfies ApplicationStatus,
-      },
-      { onConflict: "applicant_id,job_posting_id" }
-    );
+    .update({
+      ai_tier: result.tier,
+      ai_score: Math.round((result.triage_reasoning.confidence ?? 0) * 100),
+      ai_reasoning: result.triage_reasoning,
+      status: "triaged" satisfies ApplicationStatus,
+    })
+    .eq("applicant_id", result.candidate_id)
+    .eq("job_posting_id", result.req_id);
 
-  if (error) throw new Error(`Supabase upsert failed: ${error.message}`);
+  if (error) throw new Error(`Supabase update failed: ${error.message}`);
+
+  // Write structured resume data back so the triage list can show currentRole/location.
+  if (result.parsed_resume) {
+    await supabase
+      .from("applicants")
+      .update({ parsed_resume: result.parsed_resume })
+      .eq("id", result.candidate_id);
+  }
+
   const score = Math.round((result.triage_reasoning.confidence ?? 0) * 100);
   console.log(
     `[triage] applicant ${result.candidate_id}: tier=${result.tier} score=${score}`

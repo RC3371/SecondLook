@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     // 4. Insert applicant records (with resume text for later triage)
     const applicantRows = extracted.map((c) => ({
       name: extractNameFromText(c.resumeText, c.filename),
-      email: extractEmailFromText(c.resumeText),
+      email: extractEmailFromText(c.resumeText) ?? 'unknown@placeholder.invalid',
       org_id: profile.org_id,
       resume_text: c.resumeText,
     }))

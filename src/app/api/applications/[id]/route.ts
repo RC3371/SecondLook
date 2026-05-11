@@ -20,7 +20,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     const { data: applicantRow } = await supabase
       .from('applicants')
-      .select('name, email, phone, parsed_resume')
+      .select('name, email, phone, resume_text, parsed_resume')
       .eq('id', app.applicant_id)
       .single()
 
@@ -28,6 +28,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       name?: string
       email?: string
       phone?: string
+      resume_text?: string
       parsed_resume?: { current_role?: string; location?: string }
     } = applicantRow ?? {}
     const reasoning = app.ai_reasoning || {}
@@ -38,7 +39,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       status: app.status,
       aiTier: app.ai_tier,
       matchScore: app.ai_score,
-      insights: reasoning.insights || [],
+      insights: reasoning.matched || [],
       aiSummary: reasoning.summary || null,
       candidate: {
         name: applicant.name || 'Unknown',
@@ -46,9 +47,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         email: applicant.email || '',
         phone: applicant.phone || '',
         location: applicant.parsed_resume?.location || '',
+        resumeText: applicant.resume_text || null,
       },
-      hasPreferredQualifications: !!reasoning.has_preferred_qualifications,
-      preferredNote: reasoning.preferred_note || null,
+      hasPreferredQualifications: !!(reasoning.preferred_hits?.length),
+      preferredNote: reasoning.preferred_hits?.join(', ') || null,
       referralMatch: reasoning.referral_match || null,
     }
 

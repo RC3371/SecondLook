@@ -66,6 +66,16 @@ function ApplicantProfile() {
         setActiveModal(null);
     };
 
+    if (!application) {
+        return (
+            <PageShell>
+                <div className="flex-1 flex items-center justify-center text-zinc-500">
+                    Loading...
+                </div>
+            </PageShell>
+        );
+    }
+
     return (
         <PageShell>
             {activeModal === 'schedule' && (
@@ -275,68 +285,23 @@ function ApplicantProfile() {
 
                     {/* Right Column - Resume Viewer */}
                     <div className="flex-1 bg-zinc-900/50 p-8 overflow-y-auto flex justify-center">
-                        {/* Mock PDF Viewer */}
                         <div className="w-full max-w-[800px] bg-white rounded shadow-2xl p-12 min-h-[1056px] text-zinc-900">
                             <div className="border-b-2 border-zinc-200 pb-6 mb-8">
                                 <h1 className="text-4xl font-bold mb-2">{application.candidate.name}</h1>
                                 <p className="text-lg text-zinc-600">{application.candidate.currentRole}</p>
                                 <div className="flex gap-4 text-sm text-zinc-500 mt-4">
                                     <span>{application.candidate.email}</span>
-                                    <span>•</span>
-                                    <span>{application.candidate.phone}</span>
-                                    <span>•</span>
-                                    <span>{application.candidate.location}</span>
+                                    {application.candidate.phone && <><span>•</span><span>{application.candidate.phone}</span></>}
+                                    {application.candidate.location && <><span>•</span><span>{application.candidate.location}</span></>}
                                 </div>
                             </div>
-
-                            <div className="space-y-8">
-                                <section>
-                                    <h2 className="text-xl font-semibold border-b border-zinc-200 pb-2 mb-4 uppercase tracking-wider text-zinc-800">Experience</h2>
-                                    <div className="space-y-6">
-                                        <div>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h3 className="font-semibold text-lg">{application.candidate.currentRole.split(' @ ')[0]}</h3>
-                                                <span className="text-zinc-500">2021 - Present</span>
-                                            </div>
-                                            <div className="text-zinc-600 font-medium mb-3">{application.candidate.currentRole.split(' @ ')[1] || 'Current Company'}</div>
-                                            <ul className="list-disc pl-5 space-y-2 text-zinc-700">
-                                                <li>Led development of core platform features using React and Next.js, improving load times by 40%.</li>
-                                                <li>Mentored junior engineers and established frontend testing standards.</li>
-                                                <li>Collaborated with design team to implement comprehensive design system.</li>
-                                            </ul>
-                                        </div>
-                                        <div>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h3 className="font-semibold text-lg">Software Engineer</h3>
-                                                <span className="text-zinc-500">2018 - 2021</span>
-                                            </div>
-                                            <div className="text-zinc-600 font-medium mb-3">Previous Tech Co</div>
-                                            <ul className="list-disc pl-5 space-y-2 text-zinc-700">
-                                                <li>Built and maintained highly scalable web applications serving 1M+ users.</li>
-                                                <li>Integrated multiple third-party REST and GraphQL APIs.</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                <section>
-                                    <h2 className="text-xl font-semibold border-b border-zinc-200 pb-2 mb-4 uppercase tracking-wider text-zinc-800">Education</h2>
-                                    <div>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h3 className="font-semibold text-lg">B.S. Computer Science</h3>
-                                            <span className="text-zinc-500">2014 - 2018</span>
-                                        </div>
-                                        <div className="text-zinc-600">State University</div>
-                                    </div>
-                                </section>
-
-                                <section>
-                                    <h2 className="text-xl font-semibold border-b border-zinc-200 pb-2 mb-4 uppercase tracking-wider text-zinc-800">Skills</h2>
-                                    <p className="text-zinc-700 leading-relaxed">
-                                        JavaScript (ES6+), TypeScript, React, Next.js, Node.js, HTML5, CSS3/Tailwind, GraphQL, REST APIs, Git, CI/CD, Agile Methodologies
-                                    </p>
-                                </section>
-                            </div>
+                            {application.candidate.resumeText ? (
+                                <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-800 leading-relaxed">
+                                    {application.candidate.resumeText}
+                                </pre>
+                            ) : (
+                                <p className="text-zinc-400 text-sm italic">Resume text not available.</p>
+                            )}
                         </div>
                     </div>
                 </div>

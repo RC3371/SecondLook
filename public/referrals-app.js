@@ -18,14 +18,26 @@ function ReferralsInbox() {
         load()
     }, [])
 
-    const handleAccept = (id) => {
-        setReferrals(referrals.filter(r => r.id !== id));
-        if (window.showToast) window.showToast('Candidate accepted to your pipeline.', 'success');
+    const handleAccept = async (id) => {
+        try {
+            await window.api.acceptReferral(id);
+            setReferrals(referrals.filter(r => r.id !== id));
+            if (window.showToast) window.showToast('Candidate accepted to your pipeline.', 'success');
+        } catch (err) {
+            console.error('Failed to accept referral:', err);
+            if (window.showToast) window.showToast('Failed to accept referral.', 'error');
+        }
     };
 
-    const handleDecline = (id) => {
-        setReferrals(referrals.filter(r => r.id !== id));
-        if (window.showToast) window.showToast('Referral declined.', 'success');
+    const handleDecline = async (id) => {
+        try {
+            await window.api.declineReferral(id);
+            setReferrals(referrals.filter(r => r.id !== id));
+            if (window.showToast) window.showToast('Referral declined.', 'success');
+        } catch (err) {
+            console.error('Failed to decline referral:', err);
+            if (window.showToast) window.showToast('Failed to decline referral.', 'error');
+        }
     };
 
     return (
@@ -37,7 +49,9 @@ function ReferralsInbox() {
                         <p className="text-zinc-400 text-sm">Review candidates matched to your roles from other teams' pipelines.</p>
                     </div>
 
-                    {referrals.length === 0 ? (
+                    {loading ? (
+                        <div className="text-center py-20 text-zinc-500">Loading...</div>
+                    ) : referrals.length === 0 ? (
                         <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/20">
                             <div className="icon-inbox text-4xl text-zinc-600 mb-4 mx-auto"></div>
                             <h3 className="text-zinc-300 font-medium mb-1">Inbox Zero</h3>

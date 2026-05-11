@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { preFilterCandidate, type RequisitionCriteria } from "./preFilter";
 import { parseResume, type ParsedResume, type RiskSignals } from "./resumeParser";
 import { triageCandidate } from "./geminiTriage";
@@ -139,7 +139,18 @@ async function upsertResult(
 ): Promise<void> {
   const { error } = await supabase
     .from("applications")
-    .upsert(result, { onConflict: "candidate_id,req_id" });
+    .upsert(
+      {
+        applicant_id: result.candidate_id,
+        job_posting_id: result.req_id,
+        org_id: result.org_id,
+        ai_tier: result.tier,
+        ai_score: Math.round((result.triage_reasoning.confidence ?? 0) * 100),
+        ai_reasoning: result.triage_reasoning,
+        status: "new",
+      },
+      { onConflict: "applicant_id,job_posting_id" }
+    );
 
   if (error) throw new Error(`Supabase upsert failed: ${error.message}`);
 }
@@ -149,11 +160,10 @@ async function upsertResult(
 export async function processBatch(
   candidates: Candidate[],
   req: Req,
-  orgId: string
+  orgId: string,
+  supabaseClient?: SupabaseClient
 ): Promise<BatchResult> {
-  // createClient() calls cookies() — must be invoked within a Next.js request
-  // context (API route, Server Action). Call once here, not per-candidate.
-  const supabase = await createClient();
+  const supabase = supabaseClient ?? createAdminClient();
 
   const batches = chunk(candidates, BATCH_SIZE);
   const results: ApplicationResult[] = [];

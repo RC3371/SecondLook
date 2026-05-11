@@ -29,6 +29,17 @@ import {
 
 // ── Shared types (imported by page.tsx) ───────────────────────────────────────
 
+export interface ParsedResume {
+  years_of_experience: number | null;
+  most_recent_title: string | null;
+  most_recent_company: string | null;
+  education: { degree: string | null; field: string | null; institution: string | null };
+  skills: string[];
+  employment_gaps: boolean;
+  total_jobs: number;
+  avg_tenure_months: number | null;
+}
+
 export interface RiskSignals {
   keyword_stuffing: boolean;
   possible_ai_generated: boolean;
@@ -54,6 +65,7 @@ export interface Application {
   org_id: string;
   tier: Tier;
   triage_reasoning: TriageReasoning;
+  parsed_resume?: ParsedResume | null;
   status: string;
   recruiter_note?: string | null;
   candidates?: { id: string; name?: string | null; resume_text?: string | null } | null;
@@ -154,6 +166,14 @@ function CandidateCard({
     app.candidates?.name ??
     `Candidate ${app.candidate_id.slice(0, 8).toUpperCase()}`;
 
+  const pr = app.parsed_resume;
+  const expLabel = pr?.years_of_experience != null
+    ? `${pr.years_of_experience} yr${pr.years_of_experience !== 1 ? "s" : ""}`
+    : null;
+  const roleLabel = [pr?.most_recent_title, pr?.most_recent_company]
+    .filter(Boolean)
+    .join(" at ") || null;
+
   return (
     <Card>
       <CardHeader className="border-b pb-3">
@@ -166,6 +186,11 @@ function CandidateCard({
             {Math.round(r.confidence * 100)}% confidence
           </span>
         </div>
+        {(expLabel || roleLabel) && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {[expLabel, roleLabel].filter(Boolean).join(" · ")}
+          </p>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-3 pt-3">

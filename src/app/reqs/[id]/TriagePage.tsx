@@ -5,10 +5,6 @@ import Link from "next/link";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import {
-  MAX_RECRUITER_NOTE_CHARS,
-  recruiterNoteSchema,
-} from "@/lib/validation/inputValidation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,21 +56,35 @@ export interface TriageReasoning {
 export type Tier = "top" | "strong" | "review" | "auto_reject";
 
 export interface Application {
-  candidate_id: string;
-  req_id: string;
-  org_id: string;
-  tier: Tier;
-  triage_reasoning: TriageReasoning;
-  parsed_resume?: ParsedResume | null;
+  id: string;
+  applicant_id: string;
+  job_posting_id: string;
+  ai_tier: Tier | null;
+  ai_score: number | null;
+  ai_reasoning: TriageReasoning | null;
   status: string;
-  recruiter_note?: string | null;
-  candidates?: { id: string; name?: string | null; resume_text?: string | null } | null;
+  applicants?: {
+    id: string;
+    name?: string | null;
+    resume_text?: string | null;
+    parsed_resume?: ParsedResume | null;
+  } | null;
 }
 
 export interface Req {
   id: string;
   title: string;
   criteria: unknown;
+}
+
+interface TriageApiResult {
+  processed: number;
+  failed: number;
+  total_applications?: number;
+  eligible_candidates?: number;
+  skipped_candidates?: number;
+  skipped_by_status?: Record<string, number>;
+  message?: string;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -120,6 +130,14 @@ const RISK_LABELS: Record<keyof RiskSignals, string> = {
   suspiciously_short: "Short resume",
 };
 
+const EMPTY_REASONING: TriageReasoning = {
+  matched: [],
+  missing: [],
+  preferred_hits: [],
+  confidence: 0,
+  summary: "Not yet triaged",
+};
+
 // ── Helper components ─────────────────────────────────────────────────────────
 
 function TierBadge({ tier }: { tier: Tier }) {
@@ -149,24 +167,22 @@ function RiskFlag({ flag }: { flag: keyof RiskSignals }) {
 function CandidateCard({
   app,
   onTierChange,
-  onNoteSave,
 }: {
   app: Application;
-  onTierChange: (candidateId: string, tier: Tier) => Promise<void>;
-  onNoteSave: (candidateId: string, note: string) => Promise<void>;
+  onTierChange: (applicationId: string, tier: Tier) => Promise<void>;
 }) {
-  const [note, setNote] = useState(app.recruiter_note ?? "");
-  const r = app.triage_reasoning;
+  const tier = app.ai_tier ?? "review";
+  const r = app.ai_reasoning ?? EMPTY_REASONING;
   const risks = r.risk_flags ?? {};
   const activeRisks = (Object.keys(risks) as (keyof RiskSignals)[]).filter(
     (k) => risks[k]
   );
 
   const label =
-    app.candidates?.name ??
-    `Candidate ${app.candidate_id.slice(0, 8).toUpperCase()}`;
+    app.applicants?.name ??
+    `Candidate ${app.applicant_id.slice(0, 8).toUpperCase()}`;
 
-  const pr = app.parsed_resume;
+  const pr = app.applicants?.parsed_resume;
   const expLabel = pr?.years_of_experience != null
     ? `${pr.years_of_experience} yr${pr.years_of_experience !== 1 ? "s" : ""}`
     : null;
@@ -179,7 +195,7 @@ function CandidateCard({
       <CardHeader className="border-b pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-2">
-            <TierBadge tier={app.tier} />
+            <TierBadge tier={tier} />
             <span className="text-sm font-medium">{label}</span>
           </div>
           <span className="shrink-0 text-xs text-muted-foreground">
@@ -254,17 +270,6 @@ function CandidateCard({
             Pre-filtered: {r.pre_filter_reason}
           </p>
         )}
-
-        {/* Recruiter note */}
-        <textarea
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          onBlur={() => onNoteSave(app.candidate_id, note)}
-          placeholder="Add a recruiter note…"
-          rows={2}
-          maxLength={MAX_RECRUITER_NOTE_CHARS}
-          className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50"
-        />
       </CardContent>
 
       <CardFooter className="gap-2">
@@ -272,8 +277,8 @@ function CandidateCard({
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           Override:
           <select
-            value={app.tier}
-            onChange={(e) => onTierChange(app.candidate_id, e.target.value as Tier)}
+            value={tier}
+            onChange={(e) => onTierChange(app.id, e.target.value as Tier)}
             className="h-7 rounded-md border border-border bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50"
           >
             <option value="top">Top</option>
@@ -319,39 +324,39 @@ export default function TriagePage({
   const [activeFilter, setActiveFilter] = useState<FilterKey>("top+strong");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  // Ref so the realtime closure always sees the current processing state without re-subscribing
+  const [triageNotice, setTriageNotice] = useState<string | null>(null);
   const isProcessingRef = useRef(false);
 
   // ── Auto-detect background processing ─────────────────────────────────────
   useEffect(() => {
     const checkBackgroundProcessing = async () => {
       const supabase = createClient();
-      // If we have candidates in the DB but fewer application results, AI is likely working
-      const { count: candCount } = await supabase
-        .from("candidates")
+      const { count: pendingCount } = await supabase
+        .from("applications")
         .select("*", { count: "exact", head: true })
-        .eq("req_id", req.id);
+        .eq("job_posting_id", req.id)
+        .is("ai_tier", null);
 
-      if (candCount !== null && candCount > applications.length) {
+      if (pendingCount !== null && pendingCount > 0) {
         setIsProcessing(true);
         isProcessingRef.current = true;
       }
     };
     checkBackgroundProcessing();
-  }, [req.id, applications.length]);
+  }, [req.id]);
 
   // ── Realtime subscription ─────────────────────────────────────────────────
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
-      .channel(`applications:req:${req.id}`)
+      .channel(`applications:job:${req.id}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "applications",
-          filter: `req_id=eq.${req.id}`,
+          filter: `job_posting_id=eq.${req.id}`,
         },
         (payload) => {
           const updated = payload.new as Application;
@@ -361,19 +366,15 @@ export default function TriagePage({
             );
           }
           setApplications((prev) => {
-            const exists = prev.some(
-              (a) => a.candidate_id === updated.candidate_id
-            );
+            const exists = prev.some((a) => a.id === updated.id);
             const next = exists
-              ? prev.map((a) =>
-                a.candidate_id === updated.candidate_id
-                  ? { ...a, ...updated }
-                  : a
-              )
+              ? prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
               : [...prev, updated];
-            return next.sort(
-              (a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier]
-            );
+            return next.sort((a, b) => {
+              const ta = a.ai_tier ? TIER_ORDER[a.ai_tier] : 99;
+              const tb = b.ai_tier ? TIER_ORDER[b.ai_tier] : 99;
+              return ta - tb;
+            });
           });
         }
       )
@@ -386,7 +387,10 @@ export default function TriagePage({
 
   // ── Tier counts ───────────────────────────────────────────────────────────
   const counts = applications.reduce(
-    (acc, a) => ({ ...acc, [a.tier]: (acc[a.tier] ?? 0) + 1 }),
+    (acc, a) => {
+      const t = a.ai_tier ?? "review";
+      return { ...acc, [t]: (acc[t] ?? 0) + 1 };
+    },
     {} as Record<Tier, number>
   );
   const countFor = (k: FilterKey) => {
@@ -400,32 +404,23 @@ export default function TriagePage({
     activeFilter === "all"
       ? applications
       : activeFilter === "top+strong"
-        ? applications.filter((a) => a.tier === "top" || a.tier === "strong")
-        : applications.filter((a) => a.tier === activeFilter);
+        ? applications.filter((a) => a.ai_tier === "top" || a.ai_tier === "strong")
+        : applications.filter((a) => (a.ai_tier ?? "review") === activeFilter);
+  const triagedCount = applications.filter((a) => !!a.ai_tier).length;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleProcessResumes = async () => {
+  const handleRunTriage = async () => {
     setIsProcessing(true);
+    setTriageNotice(null);
+    if (applications.length > 0) {
+      setProgress({ done: 0, total: applications.length });
+    }
     isProcessingRef.current = true;
     try {
-      const supabase = createClient();
-      const { data: candidates, error } = await supabase
-        .from("candidates")
-        .select("id, resume_text")
-        .eq("req_id", req.id);
-
-      if (error) throw new Error(error.message);
-      if (!candidates?.length) {
-        toast.info("No candidates found for this requisition.");
-        return;
-      }
-
-      setProgress({ done: 0, total: candidates.length });
-
       const res = await fetch("/api/triage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ req_id: req.id, candidates }),
+        body: JSON.stringify({ job_posting_id: req.id }),
       });
 
       if (!res.ok) {
@@ -433,63 +428,60 @@ export default function TriagePage({
         throw new Error((body as { error?: string }).error ?? "Triage request failed");
       }
 
-      const result = (await res.json()) as {
-        processed: number;
-        failed: number;
-      };
-      toast.success(
+      const result = (await res.json()) as TriageApiResult;
+      const summary =
+        result.message ??
         `Processed ${result.processed} candidate${result.processed !== 1 ? "s" : ""}` +
-        (result.failed ? ` · ${result.failed} failed` : "")
-      );
+          (result.failed ? ` · ${result.failed} failed` : "");
+      const skipped = result.skipped_candidates ?? 0;
+
+      if (result.failed > 0 || skipped > 0) {
+        setTriageNotice(summary);
+        toast.error(summary);
+      } else {
+        setTriageNotice(null);
+        toast.success(summary);
+      }
+      if ((result.total_applications ?? 0) > 0) {
+        setProgress({
+          done: result.processed,
+          total: result.total_applications ?? result.processed,
+        });
+      } else {
+        setProgress(null);
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Processing failed");
+      const message = err instanceof Error ? err.message : "Processing failed";
+      setTriageNotice(message);
+      toast.error(message);
       setProgress(null);
     } finally {
       isProcessingRef.current = false;
       setIsProcessing(false);
-      // Keep the completed bar visible briefly so the user sees 100%
       setTimeout(() => setProgress(null), 1500);
     }
   };
 
-  const handleTierChange = async (candidateId: string, newTier: Tier) => {
-    // Optimistic update
+  const handleTierChange = async (applicationId: string, newTier: Tier) => {
     setApplications((prev) =>
       prev
-        .map((a) => (a.candidate_id === candidateId ? { ...a, tier: newTier } : a))
-        .sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier])
+        .map((a) => (a.id === applicationId ? { ...a, ai_tier: newTier } : a))
+        .sort((a, b) => {
+          const ta = a.ai_tier ? TIER_ORDER[a.ai_tier] : 99;
+          const tb = b.ai_tier ? TIER_ORDER[b.ai_tier] : 99;
+          return ta - tb;
+        })
     );
 
     const supabase = createClient();
     const { error } = await supabase
       .from("applications")
-      .update({ tier: newTier })
-      .eq("candidate_id", candidateId)
-      .eq("req_id", req.id);
+      .update({ ai_tier: newTier })
+      .eq("id", applicationId);
 
     if (error) {
       toast.error("Failed to update tier — please try again");
-      // Realtime will sync the DB state back on its own
     }
-  };
-
-  const handleNoteSave = async (candidateId: string, note: string) => {
-    const parsedNote = recruiterNoteSchema.safeParse(note);
-    if (!parsedNote.success) {
-      toast.error(
-        `Note must be ${MAX_RECRUITER_NOTE_CHARS} characters or fewer`
-      );
-      return;
-    }
-
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("applications")
-      .update({ recruiter_note: parsedNote.data })
-      .eq("candidate_id", candidateId)
-      .eq("req_id", req.id);
-
-    if (error) toast.error("Note failed to save");
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -506,19 +498,26 @@ export default function TriagePage({
           </Link>
           <h1 className="text-xl font-semibold">{req.title}</h1>
           <p className="text-sm text-muted-foreground">
-            {applications.length} candidate{applications.length !== 1 ? "s" : ""} triaged
+            {triagedCount} / {applications.length} candidate{applications.length !== 1 ? "s" : ""} triaged
           </p>
         </div>
 
         <Button
-          onClick={handleProcessResumes}
+          onClick={handleRunTriage}
           disabled={isProcessing}
           className="shrink-0"
         >
           {isProcessing && <Loader2 className="animate-spin" />}
-          {isProcessing ? "Processing…" : "Process resumes"}
+          {isProcessing ? "Processing…" : "Run triage"}
         </Button>
       </div>
+
+      {triageNotice && (
+        <div className="mb-6 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+          <p className="text-sm text-amber-800">{triageNotice}</p>
+        </div>
+      )}
 
       {/* Progress bar */}
       {(progress || isProcessing) && (
@@ -527,7 +526,7 @@ export default function TriagePage({
             <span>
               {progress
                 ? (progress.done < progress.total ? "Processing candidates…" : "Processing complete")
-                : "AI is analyzing new resumes…"}
+                : "AI is analyzing resumes…"}
             </span>
             {progress && (
               <span className="tabular-nums">
@@ -594,9 +593,9 @@ export default function TriagePage({
         <div className="rounded-xl border border-dashed border-border p-12 text-center">
           <p className="text-sm text-muted-foreground">
             {isProcessing
-              ? "AI is currently analyzing your new resumes. They will appear here automatically..."
+              ? "AI is currently analyzing your resumes. Results will appear here automatically…"
               : applications.length === 0
-                ? 'No candidates triaged yet. Upload resumes or click "Process resumes" to start.'
+                ? 'No candidates yet. Upload resumes or click "Run triage" to start.'
                 : `No candidates in the "${FILTER_OPTIONS.find((f) => f.key === activeFilter)?.label}" tier.`}
           </p>
         </div>
@@ -604,10 +603,9 @@ export default function TriagePage({
         <div className="space-y-4">
           {visible.map((app) => (
             <CandidateCard
-              key={app.candidate_id}
+              key={app.id}
               app={app}
               onTierChange={handleTierChange}
-              onNoteSave={handleNoteSave}
             />
           ))}
         </div>

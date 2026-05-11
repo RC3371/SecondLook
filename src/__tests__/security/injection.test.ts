@@ -3,7 +3,7 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const { mockGenerateContent } = vi.hoisted(() => ({
@@ -256,19 +256,20 @@ describe("XSS safety in UI rendering", () => {
 
   it("renders candidate name script payload as escaped text", () => {
     const app: Application = {
-      candidate_id: "cand-1",
-      req_id: "req-1",
-      org_id: "org-1",
-      tier: "top",
-      triage_reasoning: {
+      id: "app-1",
+      applicant_id: "cand-1",
+      job_posting_id: "req-1",
+      ai_tier: "top",
+      ai_score: 70,
+      ai_reasoning: {
         matched: [],
         missing: [],
         preferred_hits: [],
         confidence: 0.7,
         summary: "Plain summary",
       },
-      status: "pending",
-      candidates: { id: "cand-1", name: "<script>alert('xss')</script>", resume_text: "text" },
+      status: "triaged",
+      applicants: { id: "cand-1", name: "<script>alert('xss')</script>", resume_text: "text" },
     };
 
     renderWithOneApp(app);
@@ -278,19 +279,20 @@ describe("XSS safety in UI rendering", () => {
 
   it("renders Gemini summary HTML payload as text, not executable HTML", () => {
     const app: Application = {
-      candidate_id: "cand-1",
-      req_id: "req-1",
-      org_id: "org-1",
-      tier: "top",
-      triage_reasoning: {
+      id: "app-1",
+      applicant_id: "cand-1",
+      job_posting_id: "req-1",
+      ai_tier: "top",
+      ai_score: 70,
+      ai_reasoning: {
         matched: [],
         missing: [],
         preferred_hits: [],
         confidence: 0.7,
         summary: "<b>Top candidate</b> <img src=x onerror=alert(1) />",
       },
-      status: "pending",
-      candidates: { id: "cand-1", name: "Safe Name", resume_text: "text" },
+      status: "triaged",
+      applicants: { id: "cand-1", name: "Safe Name", resume_text: "text" },
     };
 
     renderWithOneApp(app);
@@ -300,34 +302,34 @@ describe("XSS safety in UI rendering", () => {
     expect(document.querySelector("img[src='x']")).toBeNull();
   });
 
-  it("stores recruiter note containing javascript: URL as plain text safely", async () => {
+  it("tier override containing script tag is stored as plain text safely", async () => {
     const app: Application = {
-      candidate_id: "cand-1",
-      req_id: "req-1",
-      org_id: "org-1",
-      tier: "top",
-      triage_reasoning: {
+      id: "app-1",
+      applicant_id: "cand-1",
+      job_posting_id: "req-1",
+      ai_tier: "top",
+      ai_score: 70,
+      ai_reasoning: {
         matched: [],
         missing: [],
         preferred_hits: [],
         confidence: 0.7,
         summary: "Summary",
       },
-      status: "pending",
-      recruiter_note: "",
-      candidates: { id: "cand-1", name: "Safe Name", resume_text: "text" },
+      status: "triaged",
+      applicants: { id: "cand-1", name: "Safe Name", resume_text: "text" },
     };
 
     const { mockUpdate } = renderWithOneApp(app);
 
-    const textarea = screen.getByPlaceholderText(/add a recruiter note/i);
-    await userEvent.type(textarea, "javascript:alert('xss')");
-    fireEvent.blur(textarea);
+    // Select dropdown is restricted to enum values — no freeform input possible
+    const select = screen.getByRole("combobox");
+    await userEvent.selectOptions(select, "strong");
 
     await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith({ recruiter_note: "javascript:alert('xss')" });
+      expect(mockUpdate).toHaveBeenCalledWith({ ai_tier: "strong" });
     });
-    expect(document.querySelector("a[href^='javascript:']")).toBeNull();
+    expect(document.querySelector("script")).toBeNull();
   });
 });
 

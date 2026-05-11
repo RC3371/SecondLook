@@ -36,11 +36,12 @@ const mockReq: Req = {
 
 const mockApplications: Application[] = [
   {
-    candidate_id: "cand-top",
-    req_id: "req-1",
-    org_id: "org-1",
-    tier: "top",
-    triage_reasoning: {
+    id: "app-top",
+    applicant_id: "cand-top",
+    job_posting_id: "req-1",
+    ai_tier: "top",
+    ai_score: 95,
+    ai_reasoning: {
       matched: ["TypeScript", "5+ years experience"],
       missing: [],
       preferred_hits: ["GraphQL"],
@@ -48,15 +49,16 @@ const mockApplications: Application[] = [
       confidence: 0.95,
       summary: "Exceptional match across all criteria",
     },
-    status: "pending",
-    candidates: { id: "cand-top", name: "Alice Top", resume_text: "..." },
+    status: "triaged",
+    applicants: { id: "cand-top", name: "Alice Top", resume_text: "..." },
   },
   {
-    candidate_id: "cand-strong",
-    req_id: "req-1",
-    org_id: "org-1",
-    tier: "strong",
-    triage_reasoning: {
+    id: "app-strong",
+    applicant_id: "cand-strong",
+    job_posting_id: "req-1",
+    ai_tier: "strong",
+    ai_score: 80,
+    ai_reasoning: {
       matched: ["TypeScript"],
       missing: [],
       preferred_hits: [],
@@ -64,15 +66,16 @@ const mockApplications: Application[] = [
       confidence: 0.8,
       summary: "Solid candidate, meets all requirements",
     },
-    status: "pending",
-    candidates: { id: "cand-strong", name: "Bob Strong", resume_text: "..." },
+    status: "triaged",
+    applicants: { id: "cand-strong", name: "Bob Strong", resume_text: "..." },
   },
   {
-    candidate_id: "cand-review",
-    req_id: "req-1",
-    org_id: "org-1",
-    tier: "review",
-    triage_reasoning: {
+    id: "app-review",
+    applicant_id: "cand-review",
+    job_posting_id: "req-1",
+    ai_tier: "review",
+    ai_score: 60,
+    ai_reasoning: {
       matched: [],
       missing: ["5+ years experience"],
       preferred_hits: [],
@@ -80,15 +83,16 @@ const mockApplications: Application[] = [
       confidence: 0.6,
       summary: "Needs closer review",
     },
-    status: "pending",
-    candidates: { id: "cand-review", name: "Charlie Review", resume_text: "..." },
+    status: "triaged",
+    applicants: { id: "cand-review", name: "Charlie Review", resume_text: "..." },
   },
   {
-    candidate_id: "cand-reject",
-    req_id: "req-1",
-    org_id: "org-1",
-    tier: "auto_reject",
-    triage_reasoning: {
+    id: "app-reject",
+    applicant_id: "cand-reject",
+    job_posting_id: "req-1",
+    ai_tier: "auto_reject",
+    ai_score: 10,
+    ai_reasoning: {
       matched: [],
       missing: ["TypeScript", "5+ years experience"],
       preferred_hits: [],
@@ -97,8 +101,8 @@ const mockApplications: Application[] = [
       summary: "Does not meet minimum requirements",
       pre_filter_reason: "Only 1 year of experience; role requires 5+",
     },
-    status: "pending",
-    candidates: { id: "cand-reject", name: "Diana Reject", resume_text: "..." },
+    status: "triaged",
+    applicants: { id: "cand-reject", name: "Diana Reject", resume_text: "..." },
   },
 ];
 
@@ -123,17 +127,16 @@ function buildSupabaseMock() {
   const mockUpdateEq1 = vi.fn().mockReturnValue({ eq: mockUpdateEq2 });
   mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq1 });
 
-  // candidates select chain: .select().eq() → resolves with candidates
-  const mockCandidatesEq = vi.fn().mockResolvedValue({
-    data: [{ id: "c1", resume_text: "resume text" }],
-    error: null,
-  });
-  const mockSelect = vi.fn().mockReturnValue({ eq: mockCandidatesEq });
+  // applications select chain for pending-count check
+  const mockSelectHead = vi.fn().mockResolvedValue({ count: 0, error: null });
+  const mockSelectEq2 = vi.fn().mockReturnValue({ is: vi.fn().mockResolvedValue({ count: 0, error: null }) });
+  const mockSelectEq1 = vi.fn().mockReturnValue({ eq: mockSelectEq2 });
+  const mockSelect = vi.fn().mockReturnValue({ eq: mockSelectEq1, head: mockSelectHead });
 
-  mockFrom = vi.fn().mockImplementation((table: string) => {
-    if (table === "candidates") return { select: mockSelect };
-    return { update: mockUpdate };
-  });
+  mockFrom = vi.fn().mockImplementation(() => ({
+    update: mockUpdate,
+    select: mockSelect,
+  }));
 
   vi.mocked(createClient).mockReturnValue({
     channel: mockChannel,
@@ -309,32 +312,26 @@ describe("interactions", () => {
     expect(badge).toHaveClass("bg-blue-100");
   });
 
-  it("recruiter note textarea saves to Supabase on blur", async () => {
+  it("tier override sends ai_tier update to Supabase", async () => {
     renderPage();
+    await userEvent.click(screen.getByRole("button", { name: /^All\d/ }));
 
     const aliceCard = screen.getByText("Alice Top").closest("[data-slot='card']")!;
-    const textarea = within(aliceCard as HTMLElement).getByPlaceholderText(/recruiter note/i);
-
-    await userEvent.type(textarea, "Strong hire, fast-track to final round");
-    fireEvent.blur(textarea);
+    const select = within(aliceCard as HTMLElement).getByRole("combobox");
+    await userEvent.selectOptions(select, "strong");
 
     await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith({ recruiter_note: "Strong hire, fast-track to final round" });
+      expect(mockUpdate).toHaveBeenCalledWith({ ai_tier: "strong" });
     });
   });
 
-  it("Process resumes button shows loading state while in-flight", async () => {
-    // Supabase candidates query never resolves — keeps handler suspended
-    const mockCandidatesEq = vi.fn().mockReturnValue(new Promise(() => {}));
-    const mockSelect = vi.fn().mockReturnValue({ eq: mockCandidatesEq });
-    mockFrom.mockImplementation((table: string) => {
-      if (table === "candidates") return { select: mockSelect };
-      return { update: mockUpdate };
-    });
+  it("Run triage button shows loading state while in-flight", async () => {
+    // fetch never resolves — keeps handler suspended
+    global.fetch = vi.fn().mockReturnValue(new Promise(() => {}));
 
     renderPage();
 
-    const button = screen.getByRole("button", { name: /process resumes/i });
+    const button = screen.getByRole("button", { name: /run triage/i });
     fireEvent.click(button);
 
     await waitFor(() => {
@@ -361,10 +358,10 @@ describe("real-time", () => {
   it("sets up a Supabase subscription scoped to the req on mount", () => {
     renderPage();
 
-    expect(mockChannel).toHaveBeenCalledWith(`applications:req:${mockReq.id}`);
+    expect(mockChannel).toHaveBeenCalledWith(`applications:job:${mockReq.id}`);
     expect(mockChannelObj.on).toHaveBeenCalledWith(
       "postgres_changes",
-      expect.objectContaining({ filter: `req_id=eq.${mockReq.id}` }),
+      expect.objectContaining({ filter: `job_posting_id=eq.${mockReq.id}` }),
       expect.any(Function)
     );
     expect(mockChannelObj.subscribe).toHaveBeenCalled();

@@ -141,10 +141,15 @@ Return ONLY valid JSON — no markdown, no preamble, no trailing text:
 Tier definitions:
   top         → exceeds all required criteria; standout candidate
   strong      → meets all required criteria; no meaningful gaps
-  review      → partially meets criteria; human review warranted
-  auto_reject → a dealbreaker is clearly present, or critical criteria unmet
+  review      → genuinely ambiguous: notable strengths AND meaningful gaps exist simultaneously
+  auto_reject → a dealbreaker is present, or so many critical criteria are unmet that rejection is clear
 
-When the resume provides insufficient signal to be certain, prefer the more conservative tier and lower your confidence score accordingly.`;
+Assignment rules:
+- Commit to the most defensible tier given the available evidence.
+- Use 'review' ONLY when the candidate clearly has both strengths worth noting AND real gaps — not simply because signal is limited.
+- If the resume is thin but shows no red flags, default to 'strong' or 'review' rather than 'auto_reject'.
+- If the candidate is clearly unqualified, use 'auto_reject' — do not soften to 'review'.
+- Express uncertainty via a lower confidence score, not by picking a more conservative tier.`;
 }
 
 // ── Override Rules ────────────────────────────────────────────────────────────
@@ -155,35 +160,48 @@ function applyOverrides(
   rawText: string
 ): TriageResult {
   let tier = result.tier;
+  let summary = result.summary;
 
-  // Rule 1 — dealbreaker match: check Gemini's assessment and keyword scan
-  // as a safety net in case Gemini missed an explicit dealbreaker mention.
+  // Rule 1 — dealbreaker safety net: keyword scan in case Gemini missed one.
+  // Only fires on whole-word matches to reduce false positives.
   const lowerText = rawText.toLowerCase();
-  const lowerMissing = result.missing.map((m) => m.toLowerCase());
 
-  const dealbreakersHit =
-    tier === "auto_reject" || // Gemini already decided
-    criteria.dealbreakers.some((db) => {
-      const ldb = db.toLowerCase();
-      return lowerText.includes(ldb) || lowerMissing.some((m) => m.includes(ldb));
-    });
+  const hitDealbreaker = criteria.dealbreakers.find((db) => {
+    const ldb = db.toLowerCase();
+    const re = new RegExp(`\\b${ldb.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
+    return re.test(lowerText);
+  });
 
-  if (dealbreakersHit) {
-    // Dealbreaker overrides everything, including low-confidence guard below.
-    return { ...result, tier: "auto_reject" };
+  if (tier === "auto_reject" || hitDealbreaker) {
+    const reason = hitDealbreaker ? `Dealbreaker matched: "${hitDealbreaker}"` : summary;
+    return { ...result, tier: "auto_reject", summary: reason };
   }
 
-  // Rule 2 — too many missing required criteria: cap at review
-  if (result.missing.length >= 2 && (tier === "strong" || tier === "top")) {
+  // Rule 2 — 3+ missing required criteria when Gemini graded top/strong:
+  // demote to auto_reject rather than review since they clearly don't qualify.
+  if (result.missing.length >= 3 && (tier === "strong" || tier === "top")) {
+    const listed = result.missing.slice(0, 3).join("; ");
+    return {
+      ...result,
+      tier: "auto_reject",
+      summary: `Missing ${result.missing.length} required criteria: ${listed}`,
+    };
+  }
+
+  // Rule 3 — 2 missing required criteria: cap at review, not auto_reject.
+  if (result.missing.length === 2 && (tier === "strong" || tier === "top")) {
     tier = "review";
+    summary = `Missing 2 required criteria: ${result.missing.join("; ")}`;
   }
 
-  // Rule 3 — low confidence: demote to review (never demote auto_reject)
-  if (result.confidence < 0.65) {
+  // Rule 4 — very low confidence (< 0.4): Gemini was highly uncertain, defer to human.
+  // Threshold intentionally low so Gemini's tier is trusted in most cases.
+  if (result.confidence < 0.4) {
     tier = "review";
+    summary = `Low confidence (${Math.round(result.confidence * 100)}%) — ${summary}`;
   }
 
-  return { ...result, tier };
+  return { ...result, tier, summary };
 }
 
 // ── Response Validation ───────────────────────────────────────────────────────

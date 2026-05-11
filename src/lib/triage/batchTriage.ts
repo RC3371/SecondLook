@@ -73,6 +73,25 @@ async function processOne(
   candidate: Candidate,
   req: Req
 ): Promise<ApplicationResult> {
+  // No resume text — skip AI to avoid a wasted API call
+  if (!candidate.resume_text.trim()) {
+    return {
+      candidate_id: candidate.id,
+      req_id: req.id,
+      tier: "review",
+      triage_reasoning: {
+        matched: [],
+        missing: [],
+        preferred_hits: [],
+        risk_flags: DEFAULT_RISK_FLAGS,
+        confidence: 0,
+        summary: "No resume text available — please review manually",
+      },
+      parsed_resume: null,
+      status: "triaged" satisfies ApplicationStatus,
+    };
+  }
+
   // Step 1: Pre-filter (pure, fast — runs before any AI call)
   const preFilter = preFilterCandidate(
     candidate.resume_text,

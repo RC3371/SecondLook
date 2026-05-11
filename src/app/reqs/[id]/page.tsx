@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import TriagePage from "./TriagePage";
 import type { Application, Req } from "./TriagePage";
 
@@ -13,36 +13,58 @@ export default async function Page({
 }) {
   const { id } = await params;
 
-  const { orgId } = await auth();
-  if (!orgId) redirect("/sign-in");
+  const { userId } = await auth();
+  if (!userId) redirect("/sign-in");
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
-  const [{ data: req }, { data: rawApplications }] = await Promise.all([
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("clerk_user_id", userId)
+    .single();
+
+  if (!profile) redirect("/sign-in");
+
+  const [{ data: job }, { data: rawApplications }] = await Promise.all([
     supabase
-      .from("requisitions")
+      .from("job_postings")
       .select("id, title, criteria")
       .eq("id", id)
-      .eq("org_id", orgId)
+      .eq("org_id", profile.org_id)
       .single(),
 
     supabase
       .from("applications")
-      .select(
-        `candidate_id, req_id, org_id, tier, triage_reasoning, parsed_resume, status, recruiter_note,
-         candidates ( id, name, resume_text )`
-      )
-      .eq("req_id", id)
-      .eq("org_id", orgId),
+      .select(`
+        id,
+        applicant_id,
+        job_posting_id,
+        status,
+        ai_tier,
+        ai_score,
+        ai_reasoning,
+        applicants (
+          id,
+          name,
+          resume_text,
+          parsed_resume
+        )
+      `)
+      .eq("job_posting_id", id),
   ]);
 
-  if (!req) notFound();
+  if (!job) notFound();
 
   const applications = ((rawApplications ?? []) as unknown as Application[]).sort(
-    (a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier]
+    (a, b) => {
+      const ta = a.ai_tier ? TIER_ORDER[a.ai_tier] : 99;
+      const tb = b.ai_tier ? TIER_ORDER[b.ai_tier] : 99;
+      return ta - tb;
+    }
   );
 
   return (
-    <TriagePage req={req as Req} initialApplications={applications} />
+    <TriagePage req={job as Req} initialApplications={applications} />
   );
 }

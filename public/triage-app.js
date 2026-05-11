@@ -177,20 +177,20 @@ function TriageView() {
                                             </td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-0.5 rounded text-xs font-medium border uppercase tracking-wider ${getTierColor(app.aiTier)}`}>
-                                                    {app.aiTier.replace('_', ' ')}
+                                                    {app.aiTier ? app.aiTier.replace('_', ' ') : 'Pending'}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-emerald-500 rounded-full" style={{width: `${app.matchScore}%`}}></div>
+                                                        <div className="h-full bg-emerald-500 rounded-full" style={{width: `${app.matchScore ?? 0}%`}}></div>
                                                     </div>
-                                                    <span className="text-xs text-zinc-400 font-medium">{app.matchScore}%</span>
+                                                    <span className="text-xs text-zinc-400 font-medium">{app.matchScore ?? 0}%</span>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex gap-1.5 flex-wrap">
-                                                    {app.insights.map((insight, i) => (
+                                                    {(app.insights || []).map((insight, i) => (
                                                         <span key={i} className="px-1.5 py-0.5 bg-zinc-900 text-zinc-400 border border-zinc-800 rounded text-[10px] font-medium">
                                                             {insight}
                                                         </span>

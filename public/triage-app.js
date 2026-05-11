@@ -56,6 +56,34 @@ function TriageView() {
         return () => window.removeEventListener('advance-schedule', handleAdvance);
     }, []);
 
+    const [triageRunning, setTriageRunning] = React.useState(false)
+
+    async function runTriage() {
+        if (!jobId || triageRunning) return
+        setTriageRunning(true)
+        try {
+            const res = await fetch('/api/triage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ job_posting_id: jobId }),
+            })
+            const body = await res.json()
+            if (!res.ok) throw new Error(body?.error || 'Triage failed')
+            if (window.showToast) window.showToast(
+                `Triage complete — ${body.processed} processed, ${body.failed} failed`, 'success'
+            )
+            // Reload to show updated tiers
+            const { job: jobData, applications: apps } = await window.api.fetchJobApplications(jobId)
+            setJob(jobData)
+            setApplications(apps)
+        } catch (err) {
+            console.error('Run triage failed:', err)
+            if (window.showToast) window.showToast(err?.message || 'Triage failed', 'error')
+        } finally {
+            setTriageRunning(false)
+        }
+    }
+
     React.useEffect(() => {
         async function load() {
             if (!window.api || !jobId) return
@@ -97,6 +125,16 @@ function TriageView() {
                                     <span className="px-2 py-1 rounded text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Top: {applications.filter(a => a.aiTier === 'top').length}</span>
                                     <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20">Strong: {applications.filter(a => a.aiTier === 'strong').length}</span>
                                 </div>
+                                <button
+                                    onClick={runTriage}
+                                    disabled={triageRunning}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${triageRunning ? 'opacity-50 cursor-not-allowed border-zinc-700 text-zinc-500' : 'border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'}`}
+                                >
+                                    {triageRunning
+                                        ? <><div className="icon-loader-2 text-sm animate-spin"></div> Running…</>
+                                        : <><div className="icon-sparkles text-sm"></div> Run Triage</>
+                                    }
+                                </button>
                             </div>
                         </div>
                     </div>

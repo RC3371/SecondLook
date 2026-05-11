@@ -86,6 +86,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to create application records' }, { status: 500 })
     }
 
+    // 6. Trigger AI triage as a separate serverless invocation so this handler
+    //    returns immediately. Triage writes ai_tier/ai_score back to applications.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    const triageSecret = process.env.TRIAGE_SECRET
+    if (appUrl && triageSecret) {
+      console.log(`[import] Triggering triage for job ${jobId} (${inserted.length} applicants)`)
+      fetch(`${appUrl}/api/triage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${triageSecret}`,
+        },
+        body: JSON.stringify({ job_posting_id: jobId }),
+      }).catch((err) => console.error('[import] Failed to trigger triage:', err))
+    } else {
+      console.warn('[import] NEXT_PUBLIC_APP_URL or TRIAGE_SECRET not set — triage not triggered')
+    }
+
     return NextResponse.json({
       path,
       queued: inserted.length,

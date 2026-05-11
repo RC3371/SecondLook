@@ -1,47 +1,47 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { processBatch } from "@/lib/triage/batchTriage";
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import {
-  hasSafeJsonDepth,
-  requisitionCriteriaSchema,
-  triageRequestSchema,
+  jobTriageRequestSchema,
   type ApplicationStatus,
 } from "@/lib/validation/inputValidation";
 
-// ── Handler ───────────────────────────────────────────────────────────────────
+export const dynamic = "force-dynamic";
+export const maxDuration = 300; // up to 5 min for large batches
 
 export async function POST(req: NextRequest) {
-  // 1. Auth
-  const { orgId } = await auth();
-  if (!orgId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // ── 1. Auth ─────────────────────────────────────────────────────────────────
+  // Accept either a Clerk session (browser "Run Triage" button) or a
+  // TRIAGE_SECRET bearer token (server-to-server call from the import route).
+  const authHeader = req.headers.get("authorization") ?? "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const isServerCall =
+    bearerToken != null &&
+    process.env.TRIAGE_SECRET != null &&
+    bearerToken === process.env.TRIAGE_SECRET;
+
+  let orgId: string | null = null;
+  if (!isServerCall) {
+    const { orgId: clerkOrgId } = await auth();
+    if (!clerkOrgId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    orgId = clerkOrgId;
   }
 
-  const contentType = req.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
-    return NextResponse.json(
-      { error: "Content-Type must be application/json" },
-      { status: 400 }
-    );
-  }
-
-  const rl = checkRateLimit(`triage:${orgId}`, {
-    limit: 20,
-    windowMs: 60_000,
-  });
+  // ── 2. Rate limit ────────────────────────────────────────────────────────────
+  const rlKey = orgId ?? `server:${bearerToken?.slice(-8)}`;
+  const rl = checkRateLimit(`triage:${rlKey}`, { limit: 10, windowMs: 60_000 });
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Rate limit exceeded" },
-      {
-        status: 429,
-        headers: { "Retry-After": String(rl.retryAfterSeconds) },
-      }
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
     );
   }
 
-  // 2. Parse + validate body
+  // ── 3. Parse body ────────────────────────────────────────────────────────────
   let body: unknown;
   try {
     body = await req.json();
@@ -49,153 +49,107 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!hasSafeJsonDepth(body)) {
-    return NextResponse.json(
-      { error: "Request JSON is too deeply nested" },
-      { status: 400 }
-    );
-  }
-
-  const parsedBody = triageRequestSchema.safeParse(body);
+  const parsedBody = jobTriageRequestSchema.safeParse(body);
   if (!parsedBody.success) {
     return NextResponse.json(
-      {
-        error:
-          "Request must include req_id (string) and candidates (non-empty array of { id, resume_text })",
-      },
+      { error: "job_posting_id is required" },
       { status: 400 }
     );
   }
 
-  const { req_id, candidates } = parsedBody.data;
+  const { job_posting_id } = parsedBody.data;
+  const supabase = createAdminClient();
 
-  // 3. Fetch requisition — scoped to the org so orgs can't triage each other's reqs
-  let requisition: {
-    id: string;
-    title: string;
-    criteria: ReturnType<typeof requisitionCriteriaSchema.parse>;
+  // ── 4. Fetch and verify the job posting ──────────────────────────────────────
+  let jobQuery = supabase
+    .from("job_postings")
+    .select("id, title, criteria")
+    .eq("id", job_posting_id);
+
+  // Scope to the authenticated org when called from the browser.
+  // Server-to-server calls trust the job_posting_id from the import route.
+  if (orgId) {
+    jobQuery = jobQuery.eq("org_id", orgId) as typeof jobQuery;
+  }
+
+  const { data: job, error: jobError } = await jobQuery.single();
+  if (jobError || !job) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  }
+
+  // ── 5. Fetch pending applicants for this job ─────────────────────────────────
+  // Include both pending_consent (consent email not yet wired) and consent_given.
+  // Skip applicants already triaged (ai_tier IS NOT NULL).
+  const { data: pendingRows, error: appsError } = await supabase
+    .from("applications")
+    .select("applicant_id, applicants!inner(id, resume_text)")
+    .eq("job_posting_id", job_posting_id)
+    .in("status", ["pending_consent", "consent_given"] satisfies ApplicationStatus[])
+    .is("ai_tier", null);
+
+  if (appsError) {
+    console.error("[triage] Failed to fetch pending applications:", appsError);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+
+  const candidates = (pendingRows ?? [])
+    .map((row: any) => ({
+      id: row.applicant_id as string,
+      resume_text: (row.applicants?.resume_text ?? "") as string,
+    }))
+    .filter((c) => c.resume_text.trim().length > 0);
+
+  if (candidates.length === 0) {
+    console.log(`[triage] No pending applicants to triage for job ${job_posting_id}`);
+    return NextResponse.json({ success: true, processed: 0, failed: 0 });
+  }
+
+  console.log(
+    `[triage] Starting triage for ${candidates.length} applications — job: ${job_posting_id}`
+  );
+
+  // ── 6. Normalise criteria ────────────────────────────────────────────────────
+  // job_postings.criteria may be sparse (e.g. just { department }).
+  // Provide safe defaults so preFilter and Gemini always get a valid shape.
+  const raw = (job.criteria as Record<string, any>) ?? {};
+  const criteria = {
+    required: {
+      min_years_experience: raw.required?.min_years_experience ?? 0,
+      seniority: raw.required?.seniority ?? "junior",
+      skills: raw.required?.skills ?? [],
+      ...(raw.required ?? {}),
+    },
+    preferred: raw.preferred ?? [],
+    dealbreakers: raw.dealbreakers ?? [],
+    ...raw,
   };
-  try {
-    const supabase = await createClient();
-    const { data, error: dbError } = await supabase
-      .from("requisitions")
-      .select("id, title, criteria")
-      .eq("id", req_id)
-      .eq("org_id", orgId)
-      .single();
 
-    if (dbError || !data) {
-      return NextResponse.json(
-        { error: "Requisition not found" },
-        { status: 404 }
-      );
-    }
-
-    const parsedCriteria = requisitionCriteriaSchema.safeParse(
-      (data as { criteria: unknown }).criteria
-    );
-    if (!parsedCriteria.success) {
-      return NextResponse.json(
-        { error: "Requisition criteria is invalid" },
-        { status: 500 }
-      );
-    }
-
-    requisition = {
-      id: (data as { id: string }).id,
-      title: (data as { title: string }).title,
-      criteria: parsedCriteria.data,
-    };
-  } catch {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-
-  // 4. Rehydrate candidate records from DB for this requisition only.
-  // Never trust client-supplied resume_text/candidate pairing for access control.
-  const uniqueCandidateIds = [...new Set(candidates.map((c) => c.id))];
-  let authorizedCandidates: Array<{ id: string; resume_text: string }>;
-  try {
-    const supabase = await createClient();
-
-    // 4a. Fetch candidates scoped to this requisition.
-    const { data: rawCandidates, error: candidateError } = await supabase
-      .from("candidates")
-      .select("id, resume_text")
-      .eq("req_id", req_id)
-      .in("id", uniqueCandidateIds);
-
-    if (candidateError || !rawCandidates) {
-      return NextResponse.json(
-        { error: "Internal server error" },
-        { status: 500 }
-      );
-    }
-
-    // 4b. Filter to only applicants who have given consent.
-    // applications.job_posting_id stores the requisition id; applicant_id links to candidates.id.
-    const { data: consentedApps, error: consentError } = await supabase
-      .from("applications")
-      .select("applicant_id")
-      .eq("job_posting_id", req_id)
-      .eq("status", "consent_given" satisfies ApplicationStatus)
-      .in("applicant_id", uniqueCandidateIds);
-
-    if (consentError) {
-      return NextResponse.json(
-        { error: "Internal server error" },
-        { status: 500 }
-      );
-    }
-
-    const consentedIds = new Set(
-      (consentedApps ?? []).map((a: { applicant_id: string }) => a.applicant_id)
-    );
-    authorizedCandidates = rawCandidates.filter((c) => consentedIds.has(c.id));
-
-    if (authorizedCandidates.length === 0) {
-      return NextResponse.json(
-        { error: "No candidates with consent_given status found for this requisition" },
-        { status: 422 }
-      );
-    }
-  } catch {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-
-  // 5. Run batch triage
+  // ── 7. Run batch triage ──────────────────────────────────────────────────────
   let batchResult;
   try {
-    batchResult = await processBatch(
-      authorizedCandidates,
-      {
-        id: requisition.id,
-        title: requisition.title,
-        criteria: requisition.criteria,
-      }
-    );
-  } catch {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    batchResult = await processBatch(candidates, {
+      id: job_posting_id,
+      title: (job as any).title,
+      criteria,
+    });
+  } catch (err) {
+    console.error("[triage] processBatch threw:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
-  // 6. Summarise tier distribution
-  const tiers = { top: 0, strong: 0, review: 0, auto_reject: 0 };
-  for (const result of batchResult.results) {
-    tiers[result.tier]++;
-  }
+  console.log(
+    `[triage] Complete — processed: ${batchResult.processed}, failed: ${batchResult.failed}`
+  );
+
+  const tierCounts = batchResult.results.reduce(
+    (acc, r) => ({ ...acc, [r.tier]: (acc[r.tier] ?? 0) + 1 }),
+    {} as Record<string, number>
+  );
 
   return NextResponse.json({
     success: true,
     processed: batchResult.processed,
     failed: batchResult.failed,
-    tiers,
+    tiers: tierCounts,
   });
 }

@@ -25,6 +25,9 @@ let _client: GoogleGenerativeAI | null = null;
 
 function getModel() {
   if (!_client) {
+    if (!process.env.GEMINI_API_KEY) {
+      console.error("[gemini] GEMINI_API_KEY is not set — all triage calls will fall back");
+    }
     _client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   }
   return _client.getGenerativeModel({
@@ -239,6 +242,7 @@ export async function triageCandidate(
   const criteria = reqCriteria as TriageReqCriteria;
 
   try {
+    console.log(`[gemini] Calling Gemini for req="${reqTitle}" textLen=${parsedResume.raw_text.length}`);
     const prompt = buildPrompt(parsedResume, criteria, reqTitle);
     const response = await withTimeout(getModel().generateContent(prompt));
     const text = response.response
@@ -249,13 +253,15 @@ export async function triageCandidate(
     const parsed: unknown = JSON.parse(text);
 
     if (!isValidTriageResult(parsed)) {
+      console.warn("[gemini] Response failed validation — using FALLBACK:", text.slice(0, 200));
       return FALLBACK;
     }
 
     const final = applyOverrides(parsed, criteria, parsedResume.raw_text);
     responseCache.set(key, final);
     return final;
-  } catch {
+  } catch (err) {
+    console.error("[gemini] Error during triage:", err instanceof Error ? err.message : err);
     return FALLBACK;
   }
 }

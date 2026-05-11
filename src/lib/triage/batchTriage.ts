@@ -149,6 +149,10 @@ async function upsertResult(
     );
 
   if (error) throw new Error(`Supabase upsert failed: ${error.message}`);
+  const score = Math.round((result.triage_reasoning.confidence ?? 0) * 100);
+  console.log(
+    `[triage] applicant ${result.candidate_id}: tier=${result.tier} score=${score}`
+  );
 }
 
 // ── Batch orchestrator ────────────────────────────────────────────────────────

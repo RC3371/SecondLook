@@ -106,6 +106,13 @@ export const consentDecisionSchema = z
   .object({
     decision: z.enum(['given', 'declined']),
   })
+  .strict()
+
+// Used by POST /api/triage when triggered from the import route or the UI
+export const jobTriageRequestSchema = z
+  .object({
+    job_posting_id: safeIdSchema,
+  })
   .strict();
 
 function getDepth(value: unknown, depth = 0): number {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -298,7 +298,7 @@ function CandidateCard({
                 candidate link with a colleague for now.
               </DialogDescription>
             </DialogHeader>
-            <DialogFooter showCloseButton />
+            <DialogFooter />
           </DialogContent>
         </Dialog>
       </CardFooter>
@@ -318,6 +318,27 @@ export default function TriagePage({
   const [applications, setApplications] = useState<Application[]>(initialApplications);
   const [activeFilter, setActiveFilter] = useState<FilterKey>("top+strong");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  // Ref so the realtime closure always sees the current processing state without re-subscribing
+  const isProcessingRef = useRef(false);
+
+  // ── Auto-detect background processing ─────────────────────────────────────
+  useEffect(() => {
+    const checkBackgroundProcessing = async () => {
+      const supabase = createClient();
+      // If we have candidates in the DB but fewer application results, AI is likely working
+      const { count: candCount } = await supabase
+        .from("candidates")
+        .select("*", { count: "exact", head: true })
+        .eq("req_id", req.id);
+
+      if (candCount !== null && candCount > applications.length) {
+        setIsProcessing(true);
+        isProcessingRef.current = true;
+      }
+    };
+    checkBackgroundProcessing();
+  }, [req.id, applications.length]);
 
   // ── Realtime subscription ─────────────────────────────────────────────────
   useEffect(() => {
@@ -334,16 +355,21 @@ export default function TriagePage({
         },
         (payload) => {
           const updated = payload.new as Application;
+          if (isProcessingRef.current) {
+            setProgress((prev) =>
+              prev ? { ...prev, done: Math.min(prev.done + 1, prev.total) } : null
+            );
+          }
           setApplications((prev) => {
             const exists = prev.some(
               (a) => a.candidate_id === updated.candidate_id
             );
             const next = exists
               ? prev.map((a) =>
-                  a.candidate_id === updated.candidate_id
-                    ? { ...a, ...updated }
-                    : a
-                )
+                a.candidate_id === updated.candidate_id
+                  ? { ...a, ...updated }
+                  : a
+              )
               : [...prev, updated];
             return next.sort(
               (a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier]
@@ -374,12 +400,13 @@ export default function TriagePage({
     activeFilter === "all"
       ? applications
       : activeFilter === "top+strong"
-      ? applications.filter((a) => a.tier === "top" || a.tier === "strong")
-      : applications.filter((a) => a.tier === activeFilter);
+        ? applications.filter((a) => a.tier === "top" || a.tier === "strong")
+        : applications.filter((a) => a.tier === activeFilter);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleProcessResumes = async () => {
     setIsProcessing(true);
+    isProcessingRef.current = true;
     try {
       const supabase = createClient();
       const { data: candidates, error } = await supabase
@@ -392,6 +419,8 @@ export default function TriagePage({
         toast.info("No candidates found for this requisition.");
         return;
       }
+
+      setProgress({ done: 0, total: candidates.length });
 
       const res = await fetch("/api/triage", {
         method: "POST",
@@ -410,12 +439,16 @@ export default function TriagePage({
       };
       toast.success(
         `Processed ${result.processed} candidate${result.processed !== 1 ? "s" : ""}` +
-          (result.failed ? ` · ${result.failed} failed` : "")
+        (result.failed ? ` · ${result.failed} failed` : "")
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Processing failed");
+      setProgress(null);
     } finally {
+      isProcessingRef.current = false;
       setIsProcessing(false);
+      // Keep the completed bar visible briefly so the user sees 100%
+      setTimeout(() => setProgress(null), 1500);
     }
   };
 
@@ -487,6 +520,37 @@ export default function TriagePage({
         </Button>
       </div>
 
+      {/* Progress bar */}
+      {(progress || isProcessing) && (
+        <div className="mb-6 space-y-1.5">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              {progress
+                ? (progress.done < progress.total ? "Processing candidates…" : "Processing complete")
+                : "AI is analyzing new resumes…"}
+            </span>
+            {progress && (
+              <span className="tabular-nums">
+                {progress.done} / {progress.total}
+              </span>
+            )}
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={[
+                "h-full rounded-full bg-primary transition-all duration-300 ease-out",
+                !progress && "animate-pulse"
+              ].filter(Boolean).join(" ")}
+              style={{
+                width: progress
+                  ? `${Math.round((progress.done / progress.total) * 100)}%`
+                  : "100%",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Tier summary / filter bar */}
       <div className="mb-6 flex flex-wrap gap-2">
         {FILTER_OPTIONS.map(({ key, label }) => {
@@ -502,12 +566,12 @@ export default function TriagePage({
                   ? key === "top"
                     ? "border-emerald-300 bg-emerald-100 text-emerald-800"
                     : key === "strong"
-                    ? "border-blue-300 bg-blue-100 text-blue-800"
-                    : key === "review"
-                    ? "border-amber-300 bg-amber-100 text-amber-800"
-                    : key === "auto_reject"
-                    ? "border-red-300 bg-red-100 text-red-800"
-                    : "border-foreground/20 bg-foreground text-background"
+                      ? "border-blue-300 bg-blue-100 text-blue-800"
+                      : key === "review"
+                        ? "border-amber-300 bg-amber-100 text-amber-800"
+                        : key === "auto_reject"
+                          ? "border-red-300 bg-red-100 text-red-800"
+                          : "border-foreground/20 bg-foreground text-background"
                   : "border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted",
               ].join(" ")}
             >
@@ -529,9 +593,11 @@ export default function TriagePage({
       {visible.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border p-12 text-center">
           <p className="text-sm text-muted-foreground">
-            {applications.length === 0
-              ? 'No candidates triaged yet. Upload resumes or click "Process resumes" to start.'
-              : `No candidates in the "${FILTER_OPTIONS.find((f) => f.key === activeFilter)?.label}" tier.`}
+            {isProcessing
+              ? "AI is currently analyzing your new resumes. They will appear here automatically..."
+              : applications.length === 0
+                ? 'No candidates triaged yet. Upload resumes or click "Process resumes" to start.'
+                : `No candidates in the "${FILTER_OPTIONS.find((f) => f.key === activeFilter)?.label}" tier.`}
           </p>
         </div>
       ) : (

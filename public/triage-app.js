@@ -2,7 +2,8 @@
 function TriageView() {
     const [selectedAppId, setSelectedAppId] = React.useState(null);
     const urlParams = new URLSearchParams(window.location.search);
-    const job = { id: urlParams.get('jobId') || '', title: 'Job' };
+    const jobId = urlParams.get('jobId') || '';
+    const [job, setJob] = React.useState({ id: jobId, title: '' });
     const [applications, setApplications] = React.useState([]);
     const [appsLoading, setAppsLoading] = React.useState(false);
 
@@ -56,20 +57,19 @@ function TriageView() {
     }, []);
 
     React.useEffect(() => {
-        // try to fetch real applications, fall back to mocks
         async function load() {
-            if (window.api && job && job.id) {
-                try {
-                    setAppsLoading(true)
-                    const apps = await window.api.fetchJobApplications(job.id)
-                    setApplications(apps)
-                } catch (err) {
-                    console.error('Failed to load applications, using mock:', err)
-                } finally { setAppsLoading(false) }
-            }
+            if (!window.api || !jobId) return
+            try {
+                setAppsLoading(true)
+                const { job: jobData, applications: apps } = await window.api.fetchJobApplications(jobId)
+                setJob(jobData)
+                setApplications(apps)
+            } catch (err) {
+                console.error('Failed to load applications:', err)
+            } finally { setAppsLoading(false) }
         }
         load()
-    }, [job && job.id])
+    }, [jobId])
 
     return (
         <PageShell>

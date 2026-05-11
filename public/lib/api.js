@@ -8,7 +8,7 @@ async function fetchJobs() {
 async function fetchJobApplications(jobId) {
   const res = await fetch(`/api/jobs/${jobId}/applications`)
   if (!res.ok) throw new Error('Failed to fetch applications')
-  return res.json()
+  return res.json() // returns { job, applications }
 }
 
 async function fetchApplication(id) {

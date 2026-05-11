@@ -30,7 +30,6 @@ interface TriageReasoning {
 export interface ApplicationResult {
   candidate_id: string;
   req_id: string;
-  org_id: string;
   tier: "auto_reject" | "review" | "strong" | "top";
   triage_reasoning: TriageReasoning;
   parsed_resume: Omit<ParsedResume, "raw_text"> | null;
@@ -71,8 +70,7 @@ function delay(ms: number): Promise<void> {
 
 async function processOne(
   candidate: Candidate,
-  req: Req,
-  orgId: string
+  req: Req
 ): Promise<ApplicationResult> {
   // Step 1: Pre-filter (pure, fast — runs before any AI call)
   const preFilter = preFilterCandidate(
@@ -92,7 +90,6 @@ async function processOne(
     return {
       candidate_id: candidate.id,
       req_id: req.id,
-      org_id: orgId,
       tier: "auto_reject",
       triage_reasoning: {
         matched: [],
@@ -116,7 +113,6 @@ async function processOne(
   return {
     candidate_id: candidate.id,
     req_id: req.id,
-    org_id: orgId,
     tier: triage.tier,
     triage_reasoning: {
       matched: triage.matched,
@@ -143,7 +139,6 @@ async function upsertResult(
       {
         applicant_id: result.candidate_id,
         job_posting_id: result.req_id,
-        org_id: result.org_id,
         ai_tier: result.tier,
         ai_score: Math.round((result.triage_reasoning.confidence ?? 0) * 100),
         ai_reasoning: result.triage_reasoning,
@@ -160,7 +155,6 @@ async function upsertResult(
 export async function processBatch(
   candidates: Candidate[],
   req: Req,
-  orgId: string,
   supabaseClient?: SupabaseClient
 ): Promise<BatchResult> {
   const supabase = supabaseClient ?? createAdminClient();
@@ -177,14 +171,13 @@ export async function processBatch(
         let result: ApplicationResult;
 
         try {
-          result = await processOne(candidate, req, orgId);
+          result = await processOne(candidate, req);
         } catch {
           // Pipeline failure — build a safe fallback record so the candidate
           // isn't silently dropped; a human still sees it for review.
           result = {
             candidate_id: candidate.id,
             req_id: req.id,
-            org_id: orgId,
             tier: "review",
             triage_reasoning: {
               matched: [],

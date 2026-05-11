@@ -176,8 +176,7 @@ export async function POST(req: NextRequest) {
         id: requisition.id,
         title: requisition.title,
         criteria: requisition.criteria,
-      },
-      orgId
+      }
     );
   } catch {
     return NextResponse.json(

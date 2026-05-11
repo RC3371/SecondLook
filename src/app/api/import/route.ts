@@ -72,7 +72,6 @@ export async function POST(req: Request) {
     const applicationRows = inserted.map((row) => ({
       applicant_id: row.id,
       job_posting_id: jobId,
-      org_id: profile.org_id,
       status: 'pending_consent',
       consent_expires_at: consentExpiresAt,
     }))

@@ -1,79 +1,112 @@
-import { createClient } from '@/lib/supabase/server'
-import { MOCK_JOBS } from '@/lib/mock-data'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const supabase = await createClient()
+    const { auth } = await import('@clerk/nextjs/server')
+    const { userId } = await auth()
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    const supabase = createAdminClient()
+
+    // Get user profile to determine organization scope
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('org_id')
+      .eq('clerk_user_id', userId)
+      .single()
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 403 })
+    }
+
+    // Consolidated query using embeddings. 
+    // Note the '!recruiter_id' to disambiguate multiple relations to 'profiles'
     const { data: jobPostings, error } = await supabase
       .from('job_postings')
-      .select('*, applications(id, status, ai_tier)')
+      .select(`
+        id, 
+        title, 
+        criteria, 
+        status,
+        recruiter:profiles!recruiter_id(full_name),
+        applications (
+          status,
+          ai_tier
+        )
+      `)
+      .eq('org_id', profile.org_id)
       .order('created_at', { ascending: false })
 
     if (error) {
       console.error('Supabase error fetching job_postings:', error)
-      // fallback to mock data so UI remains functional in dev
-      const processed = (MOCK_JOBS || []).map((job: any) => ({
-        id: job.id,
-        title: job.title,
-        department: job.department || 'Engineering',
-        applicantsCount: job.applicantsCount || 0,
-        newApplicantsCount: job.newApplicantsCount || 0,
-        stats: job.stats || { top: 0, strong: 0, review: 0, rejected: 0 },
-        referralOpportunities: job.referralOpportunities || 0,
-      }))
-      return NextResponse.json(processed)
+      return NextResponse.json({ error: error.message || 'Failed to load jobs' }, { status: 500 })
     }
 
     const processedJobs = (jobPostings || []).map((job: any) => {
-      const apps = job.applications || []
-      const newApps = apps.filter((a: any) => a.status === 'new').length
-      const topApps = apps.filter((a: any) => a.ai_tier === 'top').length
-      const strongApps = apps.filter((a: any) => a.ai_tier === 'strong').length
-      const reviewApps = apps.filter((a: any) => a.ai_tier === 'review').length
-      const rejectedApps = apps.filter((a: any) => a.ai_tier === 'auto_reject').length
-
+      const jobApps = job.applications || []
       return {
         id: job.id,
         title: job.title,
-        department: job.department || 'Engineering',
-        applicantsCount: apps.length,
-        newApplicantsCount: newApps,
-        stats: { top: topApps, strong: strongApps, review: reviewApps, rejected: rejectedApps },
-        referralOpportunities: 0
+        recruiter: (job.recruiter as any)?.full_name,
+        department: job.criteria?.department || 'General',
+        applicantsCount: jobApps.length,
+        newApplicantsCount: jobApps.filter((a: any) => a.status === 'new').length,
+        stats: {
+          top: jobApps.filter((a: any) => a.ai_tier === 'top').length,
+          strong: jobApps.filter((a: any) => a.ai_tier === 'strong').length,
+          review: jobApps.filter((a: any) => a.ai_tier === 'review').length,
+          rejected: jobApps.filter((a: any) => a.ai_tier === 'auto_reject').length,
+        },
+        referralOpportunities: 0,
       }
     })
 
     return NextResponse.json(processedJobs)
   } catch (err) {
-      console.error('Error in /api/jobs:', err)
-      // final fallback to mock jobs
-      return NextResponse.json((MOCK_JOBS || []))
+    console.error('Error in GET /api/jobs:', err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }
 
 export async function POST(req: Request) {
   try {
-    // create job posting; require auth
     const { auth } = await import('@clerk/nextjs/server')
-    const { orgId, userId } = await auth()
-    if (!orgId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { userId } = await auth()
+    if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await req.json()
-    const { title, description, department, recruiter_id } = body
-
+    const { title, description, department } = body
     if (!title) return NextResponse.json({ error: 'title is required' }, { status: 400 })
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
+
+    // Look up the org and profile for this Clerk user
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, org_id')
+      .eq('clerk_user_id', userId)
+      .single()
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found. Ensure your account is fully set up.' }, { status: 403 })
+    }
+
     const { data, error } = await supabase
       .from('job_postings')
-      .insert([{ title, description: description || null, org_id: orgId, recruiter_id: recruiter_id || userId, department }])
+      .insert([{
+        title,
+        description: description || null,
+        org_id: profile.org_id,
+        recruiter_id: profile.id,
+        criteria: department ? { department } : {},
+        status: 'open',
+      }])
       .select()
 
     if (error) {
       console.error('Supabase error creating job_posting:', error)
-      return NextResponse.json({ error: error.message || error }, { status: 500 })
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
     return NextResponse.json(data?.[0] || null)

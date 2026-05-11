@@ -1,41 +1,49 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const id = params.id
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
-    const { data, error } = await supabase
+    const { data: app, error } = await supabase
       .from('applications')
-      .select('*, candidates(*)')
+      .select('id, applicant_id, job_posting_id, status, ai_tier, ai_score, ai_reasoning')
       .eq('id', id)
       .single()
 
     if (error) {
       console.error('Supabase error fetching application:', error)
-      return NextResponse.json({ error: error.message || error }, { status: 500 })
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const app = data
+    const { data: applicantRow } = await supabase
+      .from('applicants')
+      .select('name, email, phone, parsed_resume')
+      .eq('id', app.applicant_id)
+      .single()
+
+    const applicant = applicantRow || {}
+    const reasoning = app.ai_reasoning || {}
+
     const processed = {
       id: app.id,
-      jobId: app.job_id,
+      jobId: app.job_posting_id,
       status: app.status,
       aiTier: app.ai_tier,
-      matchScore: app.match_score,
-      insights: app.insights || [],
-      aiSummary: app.ai_summary || null,
-      candidate: app.candidates || {
-        name: app.candidate_name || 'Unknown',
-        currentRole: app.candidate_current_role || '',
-        email: app.candidate_email || '',
-        phone: app.candidate_phone || '',
-        location: app.candidate_location || '',
+      matchScore: app.ai_score,
+      insights: reasoning.insights || [],
+      aiSummary: reasoning.summary || null,
+      candidate: {
+        name: applicant.name || 'Unknown',
+        currentRole: applicant.parsed_resume?.current_role || '',
+        email: applicant.email || '',
+        phone: applicant.phone || '',
+        location: applicant.parsed_resume?.location || '',
       },
-      hasPreferredQualifications: !!app.has_preferred_qualifications,
-      preferredNote: app.preferred_note || null,
-      referralMatch: app.referral_match || null,
+      hasPreferredQualifications: !!reasoning.has_preferred_qualifications,
+      preferredNote: reasoning.preferred_note || null,
+      referralMatch: reasoning.referral_match || null,
     }
 
     return NextResponse.json(processed)
@@ -50,7 +58,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   try {
     const body = await req.json()
     const { action, data } = body
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     if (action === 'update_status') {
       const { status } = data
@@ -58,12 +66,42 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .from('applications')
         .update({ status })
         .eq('id', id)
-
       if (error) return NextResponse.json({ error }, { status: 500 })
       return NextResponse.json({ ok: true })
     }
 
-    // Add other actions as needed (advance, refer, add_note)
+    if (action === 'advance') {
+      const { stage } = data || {}
+      const { error } = await supabase
+        .from('applications')
+        .update({ status: 'advanced', decided_at: new Date().toISOString() })
+        .eq('id', id)
+      if (error) return NextResponse.json({ error }, { status: 500 })
+      // Record in communications if stage provided
+      if (stage) {
+        await supabase.from('communications').insert({
+          application_id: id,
+          type: 'advance',
+          subject: `Advanced to ${stage}`,
+          body: stage,
+        })
+      }
+      return NextResponse.json({ ok: true })
+    }
+
+    if (action === 'add_note') {
+      const { note } = data || {}
+      if (!note) return NextResponse.json({ error: 'note is required' }, { status: 400 })
+      const { error } = await supabase.from('communications').insert({
+        application_id: id,
+        type: 'custom',
+        subject: 'Internal Note',
+        body: note,
+      })
+      if (error) return NextResponse.json({ error }, { status: 500 })
+      return NextResponse.json({ ok: true })
+    }
+
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   } catch (err) {
     console.error('Error in POST /api/applications/[id]:', err)

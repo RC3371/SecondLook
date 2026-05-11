@@ -49,7 +49,99 @@ async function uploadImport(formData) {
   return res.json()
 }
 
-const api = { fetchJobs, fetchJobApplications, fetchApplication, updateApplicationStatus, fetchReferrals, createJob, uploadImport }
+async function createReferral(payload) {
+  const res = await fetch('/api/referrals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  if (!res.ok) throw new Error('Failed to create referral')
+  return res.json()
+}
+
+async function advanceApplication(id, stage) {
+  const res = await fetch(`/api/applications/${id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'advance', data: { stage } })
+  })
+  if (!res.ok) throw new Error('Failed to advance application')
+  return res.json()
+}
+
+async function addNote(id, note) {
+  const res = await fetch(`/api/applications/${id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'add_note', data: { note } })
+  })
+  if (!res.ok) throw new Error('Failed to add note')
+  return res.json()
+}
+
+async function searchCandidates(query) {
+  const url = query ? `/api/candidates?q=${encodeURIComponent(query)}` : '/api/candidates'
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Failed to search candidates')
+  return res.json()
+}
+
+async function getInterviews(date) {
+  const url = date ? `/api/interviews?date=${encodeURIComponent(date)}` : '/api/interviews'
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('Failed to fetch interviews')
+  return res.json()
+}
+
+async function scheduleInterview(payload) {
+  const res = await fetch('/api/interviews', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  if (!res.ok) throw new Error('Failed to schedule interview')
+  return res.json()
+}
+
+async function getSettings() {
+  const res = await fetch('/api/settings')
+  if (!res.ok) throw new Error('Failed to fetch settings')
+  return res.json()
+}
+
+async function saveSettings(payload) {
+  const res = await fetch('/api/settings', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+  if (!res.ok) throw new Error('Failed to save settings')
+  return res.json()
+}
+
+async function getBooking(token) {
+  const res = await fetch(`/api/booking?token=${encodeURIComponent(token)}`)
+  if (!res.ok) throw new Error('Failed to fetch booking')
+  return res.json()
+}
+
+async function confirmBooking(token, slotId) {
+  const res = await fetch('/api/booking', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, slotId })
+  })
+  if (!res.ok) throw new Error('Failed to confirm booking')
+  return res.json()
+}
+
+const api = {
+  fetchJobs, fetchJobApplications, fetchApplication, updateApplicationStatus,
+  fetchReferrals, createJob, uploadImport,
+  createReferral, advanceApplication, addNote,
+  searchCandidates, getInterviews, scheduleInterview,
+  getSettings, saveSettings, getBooking, confirmBooking
+}
 
 if (typeof window !== 'undefined') window.api = api
 

@@ -12,23 +12,48 @@ class ErrorBoundary extends React.Component {
 }
 
 function CandidateBooking() {
-    const [status, setStatus] = React.useState('selecting'); // 'selecting', 'error', 'success'
-    
-    // Mock proposed times
-    const proposedTimes = [
+    const [status, setStatus] = React.useState('selecting'); // 'selecting', 'error', 'success', 'loading'
+    const [selectedTime, setSelectedTime] = React.useState(null);
+    const [bookingToken, setBookingToken] = React.useState(null);
+    const [recruiterName, setRecruiterName] = React.useState('Jane Doe');
+    const [interviewLabel, setInterviewLabel] = React.useState('Recruiter Screen • 30 mins');
+
+    // Demo fallback times shown when there's no real booking token
+    const demoTimes = [
         { id: 1, date: 'Monday, May 11', time: '10:00 AM PST', available: true },
-        { id: 2, date: 'Tuesday, May 12', time: '2:30 PM PST', available: false }, // Simulating someone else took this slot
+        { id: 2, date: 'Tuesday, May 12', time: '2:30 PM PST', available: false },
         { id: 3, date: 'Wednesday, May 13', time: '11:00 AM PST', available: true }
     ];
+    const [proposedTimes, setProposedTimes] = React.useState(demoTimes);
 
-    const [selectedTime, setSelectedTime] = React.useState(null);
+    React.useEffect(() => {
+        const token = new URLSearchParams(window.location.search).get('token');
+        if (!token) return;
+        setBookingToken(token);
+        setStatus('loading');
+        window.api?.getBooking(token).then(data => {
+            if (data?.proposed_slots) {
+                setProposedTimes(data.proposed_slots.map((s, i) => ({ id: i + 1, ...s })));
+            }
+            if (data?.applications?.candidates?.name) setRecruiterName(data.applications.candidates.name);
+            setStatus('selecting');
+        }).catch(() => {
+            setStatus('error');
+        });
+    }, []);
 
-    const handleConfirm = () => {
+    const handleConfirm = async () => {
         if (!selectedTime) return;
         const timeObj = proposedTimes.find(t => t.id === selectedTime);
-        
-        if (!timeObj.available) {
-            setStatus('error');
+        if (!timeObj?.available) { setStatus('error'); return; }
+
+        if (bookingToken) {
+            try {
+                await window.api.confirmBooking(bookingToken, selectedTime);
+                setStatus('success');
+            } catch {
+                setStatus('error');
+            }
         } else {
             setStatus('success');
         }
@@ -42,10 +67,17 @@ function CandidateBooking() {
                         <div className="icon-calendar text-blue-500 text-xl"></div>
                     </div>
                     <div>
-                        <h1 className="text-xl font-semibold text-zinc-100">Jane Doe</h1>
-                        <p className="text-zinc-400 text-sm">Recruiter Screen • 30 mins</p>
+                        <h1 className="text-xl font-semibold text-zinc-100">{recruiterName}</h1>
+                        <p className="text-zinc-400 text-sm">{interviewLabel}</p>
                     </div>
                 </div>
+
+                {status === 'loading' && (
+                    <div className="text-center py-12">
+                        <div className="icon-loader text-2xl text-zinc-500 animate-spin mx-auto mb-4"></div>
+                        <div className="text-zinc-400 text-sm">Loading your available times...</div>
+                    </div>
+                )}
 
                 {status === 'selecting' && (
                     <div className="animate-in fade-in slide-in-from-bottom-4">

@@ -34,21 +34,50 @@ function ApplicantProfile() {
         load()
     }, [appId]);
     const [activeModal, setActiveModal] = React.useState(null);
+    const [availableJobs, setAvailableJobs] = React.useState([]);
+    const [referJobId, setReferJobId] = React.useState('');
+    const [referNote, setReferNote] = React.useState('');
+    const [advanceStage, setAdvanceStage] = React.useState('Recruiter Screen');
 
-    const handleAction = () => {
-        let msg = 'Action completed.';
-        if (activeModal === 'message') msg = 'Message sent to ' + application.candidate.name;
-        if (activeModal === 'reject') msg = application.candidate.name + ' has been rejected.';
-        if (activeModal === 'refer') msg = 'Referral sent to the hiring team.';
-        if (activeModal === 'advance') msg = application.candidate.name + ' advanced to next stage.';
-        if (activeModal === 'schedule') {
-            msg = 'Interview invitation sent to ' + application.candidate.name;
-            if (window.showToast) window.showToast(msg, 'success');
-            setActiveModal(null);
+    React.useEffect(() => {
+        async function loadJobs() {
+            try {
+                if (window.api) {
+                    const jobs = await window.api.fetchJobs();
+                    setAvailableJobs(jobs);
+                }
+            } catch (err) {
+                console.error('Failed to load jobs for refer modal:', err);
+            }
+        }
+        loadJobs();
+    }, []);
+
+    const handleAction = async () => {
+        if (!application) return;
+        try {
+            if (activeModal === 'reject') {
+                await window.api?.updateApplicationStatus(application.id, 'rejected');
+                if (window.showToast) window.showToast(application.candidate.name + ' has been rejected.', 'success');
+            } else if (activeModal === 'refer') {
+                await window.api?.createReferral({
+                    from_application_id: application.id,
+                    to_job_posting_id: referJobId,
+                    message: referNote,
+                });
+                if (window.showToast) window.showToast('Referral sent to the hiring team.', 'success');
+            } else if (activeModal === 'message') {
+                if (window.showToast) window.showToast('Message sent to ' + application.candidate.name, 'success');
+            } else if (activeModal === 'schedule') {
+                if (window.showToast) window.showToast('Interview invitation sent to ' + application.candidate.name, 'success');
+            } else {
+                if (window.showToast) window.showToast('Action completed.', 'success');
+            }
+        } catch (err) {
+            console.error('Action failed:', err);
+            if (window.showToast) window.showToast('Action failed. Please try again.', 'error');
             return;
         }
-        
-        if (window.showToast) window.showToast(msg, 'success');
         setActiveModal(null);
     };
 
@@ -98,15 +127,25 @@ function ApplicantProfile() {
                                 <div>
                                     <h2 className="text-xl font-semibold text-amber-500 mb-2">Refer Cross-Team</h2>
                                     <p className="text-zinc-400 text-sm mb-6">Share this profile with another team. If they accept, the candidate moves to their pipeline.</p>
-                                    <select className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-100 text-sm mb-4 focus:outline-none">
-                                        <option>Select a role...</option>
-                                        <option>Backend Engineer (Python)</option>
-                                        <option>Product Manager</option>
+                                    <select
+                                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-100 text-sm mb-4 focus:outline-none"
+                                        value={referJobId}
+                                        onChange={e => setReferJobId(e.target.value)}
+                                    >
+                                        <option value="">Select a role...</option>
+                                        {availableJobs.map(j => (
+                                            <option key={j.id} value={j.id}>{j.title}</option>
+                                        ))}
                                     </select>
-                                    <textarea className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-zinc-100 text-sm h-24 focus:outline-none resize-none mb-4" placeholder="Why is this candidate a good fit for them?"></textarea>
+                                    <textarea
+                                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-3 text-zinc-100 text-sm h-24 focus:outline-none resize-none mb-4"
+                                        placeholder="Why is this candidate a good fit for them?"
+                                        value={referNote}
+                                        onChange={e => setReferNote(e.target.value)}
+                                    ></textarea>
                                     <div className="flex justify-end gap-3">
                                         <button onClick={() => setActiveModal(null)} className="btn-secondary">Cancel</button>
-                                        <button onClick={handleAction} className="btn-primary bg-amber-500 text-amber-950 hover:bg-amber-400">Send Referral</button>
+                                        <button onClick={handleAction} disabled={!referJobId} className="btn-primary bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:opacity-50">Send Referral</button>
                                     </div>
                                 </div>
                             )}
@@ -115,7 +154,11 @@ function ApplicantProfile() {
                                 <div>
                                     <h2 className="text-xl font-semibold text-emerald-500 mb-2">Advance Candidate</h2>
                                     <p className="text-zinc-400 text-sm mb-6">Move {application.candidate.name} to the next stage.</p>
-                                    <select className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-100 text-sm mb-4 focus:outline-none">
+                                    <select
+                                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-100 text-sm mb-4 focus:outline-none"
+                                        value={advanceStage}
+                                        onChange={e => setAdvanceStage(e.target.value)}
+                                    >
                                         <option>Recruiter Screen</option>
                                         <option>Hiring Manager Interview</option>
                                         <option>Technical Assessment</option>
@@ -128,13 +171,21 @@ function ApplicantProfile() {
 
                                     <div className="flex justify-end gap-3">
                                         <button onClick={() => setActiveModal(null)} className="btn-secondary">Cancel</button>
-                                        <button onClick={() => {
+                                        <button onClick={async () => {
                                             const shouldSchedule = document.getElementById('advanceAndSchedule').checked;
+                                            try {
+                                                await window.api?.advanceApplication(application.id, advanceStage);
+                                            } catch (err) {
+                                                console.error('Failed to advance:', err);
+                                                if (window.showToast) window.showToast('Failed to advance candidate.', 'error');
+                                                return;
+                                            }
                                             if (shouldSchedule) {
-                                                if(window.showToast) window.showToast(`${application.candidate.name} advanced. Please schedule the interview.`, 'success');
+                                                if (window.showToast) window.showToast(`${application.candidate.name} advanced. Please schedule the interview.`, 'success');
                                                 setActiveModal('schedule');
                                             } else {
-                                                handleAction();
+                                                if (window.showToast) window.showToast(`${application.candidate.name} advanced to ${advanceStage}.`, 'success');
+                                                setActiveModal(null);
                                             }
                                         }} className="btn-primary bg-emerald-500 text-emerald-950 hover:bg-emerald-400">
                                             Advance Stage
@@ -229,7 +280,18 @@ function ApplicantProfile() {
                                     </h4>
                                     <div className="text-zinc-200 text-sm font-medium mb-1">{application.referralMatch.jobTitle}</div>
                                     <div className="text-sm text-zinc-400 mb-4">{application.referralMatch.reasoning}</div>
-                                    <button className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-sm font-medium rounded-lg border border-amber-500/20 transition-colors">
+                                    <button onClick={async () => {
+                                        try {
+                                            await window.api?.createReferral({
+                                                from_application_id: application.id,
+                                                to_job_posting_id: application.referralMatch.jobId,
+                                                message: application.referralMatch.reasoning,
+                                            });
+                                            if (window.showToast) window.showToast('Referral sent!', 'success');
+                                        } catch (err) {
+                                            if (window.showToast) window.showToast('Failed to send referral.', 'error');
+                                        }
+                                    }} className="w-full py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-sm font-medium rounded-lg border border-amber-500/20 transition-colors">
                                         Refer to Team
                                     </button>
                                 </div>

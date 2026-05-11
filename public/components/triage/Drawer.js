@@ -41,7 +41,18 @@ function ApplicantDrawer({ application, onClose }) {
                         </h4>
                         <div className="text-zinc-200 text-sm font-medium mb-1">{application.referralMatch.jobTitle}</div>
                         <div className="text-xs text-zinc-400 mb-4">{application.referralMatch.reasoning}</div>
-                        <button className="w-full py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-sm font-medium rounded-lg border border-amber-500/20 transition-colors">
+                        <button onClick={async () => {
+                            try {
+                                await window.api?.createReferral({
+                                    from_application_id: application.id,
+                                    to_job_posting_id: application.referralMatch.jobId,
+                                    message: application.referralMatch.reasoning,
+                                });
+                                if (window.showToast) window.showToast('Referral sent!', 'success');
+                            } catch (err) {
+                                if (window.showToast) window.showToast('Failed to send referral.', 'error');
+                            }
+                        }} className="w-full py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-sm font-medium rounded-lg border border-amber-500/20 transition-colors">
                             Refer to Team
                         </button>
                     </div>

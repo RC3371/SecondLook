@@ -20,14 +20,12 @@ function OpenRoles() {
         async function fetchJobs() {
             try {
                 const res = await fetch('/api/jobs')
-                if (!res.ok) throw new Error('Failed to fetch jobs')
-                const processedJobs = await res.json()
-                setJobs(processedJobs)
+                const body = await res.json()
+                if (!res.ok) throw new Error(body?.error || 'Failed to fetch jobs')
+                setJobs(body)
             } catch (err) {
-                const errorMessage = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err))
-                console.error('Error fetching jobs:', errorMessage)
-                setError(errorMessage)
-                setJobs(typeof MOCK_JOBS !== 'undefined' ? MOCK_JOBS : [])
+                console.error('Error fetching jobs:', err)
+                setError(err?.message || String(err))
             } finally {
                 setLoading(false)
             }
@@ -55,6 +53,12 @@ function OpenRoles() {
                         <div className="text-center py-20">
                             <div className="icon-loader text-2xl text-zinc-500 animate-spin mx-auto mb-4"></div>
                             <div className="text-zinc-400">Loading jobs from Supabase...</div>
+                        </div>
+                    ) : error ? (
+                        <div className="text-center py-20 border border-dashed border-red-900 rounded-2xl bg-red-500/5">
+                            <div className="icon-alert-circle text-4xl text-red-500 mb-4 mx-auto"></div>
+                            <h3 className="text-red-400 font-medium mb-1">Failed to load jobs</h3>
+                            <p className="text-zinc-500 text-sm">{error}</p>
                         </div>
                     ) : jobs.length === 0 ? (
                         <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl bg-zinc-900/20">

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Booking - Second Look</title>
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/react@18/umd/react.production.min.js"></script>
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://resource.trickle.so/vendor_lib/unpkg/lucide-static@0.516.0/font/lucide.css" rel="stylesheet">
+    <style type="text/tailwindcss">
+    @layer theme {
+        :root {
+            --bg-base: theme('colors.zinc.950');
+            --bg-surface: theme('colors.zinc.900');
+            --bg-surface-hover: theme('colors.zinc.800');
+            --border-subtle: theme('colors.zinc.800');
+            --text-main: theme('colors.zinc.50');
+            --text-muted: theme('colors.zinc.400');
+        }
+    }
+    @layer base {
+        body {
+            @apply bg-[var(--bg-base)] text-[var(--text-main)] antialiased;
+        }
+    }
+    @layer components {
+        .btn-primary {
+            @apply px-4 py-2 bg-zinc-100 text-zinc-900 font-medium rounded-lg hover:bg-white transition-colors text-sm;
+        }
+    }
+    </style>
+</head>
+<body class="bg-zinc-950 flex items-center justify-center min-h-screen">
+    <div id="root"></div>
+    <script type="text/babel" src="lib/api.js"></script>
+    <script type="text/babel" src="components/shared/ErrorBoundary.js"></script>
+    <script type="text/babel" src="booking-app.js"></script>
+</body>
+</html>

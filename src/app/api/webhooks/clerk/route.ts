@@ -1,13 +1,8 @@
 import { Webhook } from 'svix'
 import { headers } from 'next/headers'
-import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { webhookHeadersSchema } from '@/lib/validation/inputValidation'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // service role bypasses RLS for admin ops
-)
 
 export async function POST(req: Request) {
   const headerPayload = await headers()
@@ -27,10 +22,16 @@ export async function POST(req: Request) {
 
   let evt: any
   try {
-    evt = wh.verify(body, { 'svix-id': svix_id, 'svix-timestamp': svix_timestamp, 'svix-signature': svix_signature })
+    evt = wh.verify(body, {
+      'svix-id': svix_id,
+      'svix-timestamp': svix_timestamp,
+      'svix-signature': svix_signature,
+    })
   } catch {
     return NextResponse.json({ error: 'Invalid webhook' }, { status: 400 })
   }
+
+  const supabase = createAdminClient()
 
   try {
     if (evt.type === 'organization.created') {
@@ -40,16 +41,41 @@ export async function POST(req: Request) {
       })
     }
 
+    if (evt.type === 'organizationMembership.created') {
+      const clerkUserId = evt.data.public_user_data.user_id
+      const clerkOrgId = evt.data.organization.id
+      const email = evt.data.public_user_data.identifier
+      const fullName = [evt.data.public_user_data.first_name, evt.data.public_user_data.last_name]
+        .filter(Boolean).join(' ')
+
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('clerk_org_id', clerkOrgId)
+        .single()
+
+      if (org) {
+        await supabase.from('profiles').upsert({
+          id: crypto.randomUUID(),
+          clerk_user_id: clerkUserId,
+          org_id: org.id,
+          email,
+          full_name: fullName,
+          role: evt.data.role === 'org:admin' ? 'admin' : 'recruiter',
+        }, { onConflict: 'clerk_user_id' })
+      }
+    }
+
     if (evt.type === 'user.created') {
-      const org = await supabase
+      const { data: org } = await supabase
         .from('organizations')
         .select('id')
         .eq('clerk_org_id', evt.data.organization_memberships?.[0]?.organization.id)
         .single()
 
-      if (org.data) {
+      if (org) {
         await supabase.from('recruiters').insert({
-          org_id: org.data.id,
+          org_id: org.id,
           clerk_user_id: evt.data.id,
           name: `${evt.data.first_name} ${evt.data.last_name}`,
           email: evt.data.email_addresses[0].email_address,

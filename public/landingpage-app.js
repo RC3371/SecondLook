@@ -25,7 +25,7 @@ function LandingPage() {
                         AI-Powered Triage is live
                     </div>
                     <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white mb-6 max-w-4xl mx-auto leading-tight">
-                        Hire smarter. <br/><span className="text-zinc-500">Move faster.</span>
+                        Hire smarter. <br /><span className="text-zinc-500">Move faster.</span>
                     </h1>
                     <p className="text-lg md:text-xl text-zinc-400 mb-10 max-w-2xl mx-auto leading-relaxed">
                         Second Look automatically triages inbound applications, identifies top talent, and bridges the gap between reviewing and scheduling with one seamless click.
@@ -38,7 +38,7 @@ function LandingPage() {
                             {/* Glowing gradient effect overlay */}
                             <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent pointer-events-none"></div>
                             {/* Actual mockup image */}
-                            <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80" alt="Dashboard Preview" className="rounded-xl opacity-40 mix-blend-overlay w-full object-cover h-[400px]" />
+                            <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80" alt="Dashboard Preview" className="rounded-xl opacity-100 mix-blend-overlay w-full object-cover h-[400px]" />
                         </div>
                     </div>
                 </div>

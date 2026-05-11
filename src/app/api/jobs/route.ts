@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ensureProfile } from '@/lib/ensure-profile'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -7,18 +8,16 @@ export async function GET() {
     const { userId } = await auth()
     if (!userId) return NextResponse.json({ error: 'No Clerk session found' }, { status: 401 })
 
-    const supabase = createAdminClient()
-
-    // Get user profile to determine organization scope
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('org_id')
-      .eq('clerk_user_id', userId)
-      .single()
+    const profile = await ensureProfile()
 
     if (!profile) {
-      return NextResponse.json({ error: `User ${userId} has no profile in Supabase` }, { status: 403 })
+      return NextResponse.json(
+        { error: 'No active organization found. Please select or create an organization in Clerk.' },
+        { status: 403 }
+      )
     }
+
+    const supabase = createAdminClient()
 
     // Note the '!recruiter_id' to disambiguate multiple relations to 'profiles'
     const { data: jobPostings, error } = await supabase

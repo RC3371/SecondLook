@@ -29,6 +29,19 @@ export default function RootLayout({
       signUpUrl="/sign-up"
       signInFallbackRedirectUrl="/index.html"
       signUpFallbackRedirectUrl="/index.html"
+      appearance={{
+        variables: {
+          colorBackground: "#18181b",       // zinc-900
+          colorInputBackground: "#27272a",  // zinc-800
+          colorText: "#fafafa",             // zinc-50
+          colorTextSecondary: "#a1a1aa",    // zinc-400
+          colorPrimary: "#f4f4f5",          // zinc-100
+          colorInputText: "#fafafa",        // zinc-50
+          colorTextOnPrimaryBackground: "#18181b", // zinc-900
+          borderRadius: "0.5rem",
+          fontFamily: "var(--font-geist-sans, sans-serif)",
+        },
+      }}
     >
       <html
         lang="en"

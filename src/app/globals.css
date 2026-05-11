@@ -166,3 +166,223 @@
 }
 
 /* End copied Trickle theme */
+
+/* Clerk auth component overrides */
+.cl-rootBox {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+
+.cl-card {
+  background-color: #18181b !important; /* zinc-900 */
+  border: 1px solid #27272a !important; /* zinc-800 */
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+  border-radius: 1rem !important;
+}
+
+.cl-headerTitle {
+  color: #fafafa !important; /* zinc-50 */
+}
+
+.cl-headerSubtitle {
+  color: #a1a1aa !important; /* zinc-400 */
+}
+
+.cl-formFieldLabel {
+  color: #d4d4d8 !important; /* zinc-300 */
+}
+
+.cl-formFieldInput {
+  background-color: #09090b !important; /* zinc-950 */
+  border-color: #3f3f46 !important; /* zinc-700 */
+  color: #fafafa !important; /* zinc-50 */
+}
+
+.cl-formFieldInput::placeholder {
+  color: #71717a !important; /* zinc-500 */
+}
+
+.cl-formFieldInput:focus {
+  border-color: #71717a !important; /* zinc-500 */
+  box-shadow: 0 0 0 2px rgba(113, 113, 122, 0.2) !important;
+}
+
+.cl-formButtonPrimary {
+  background-color: #f4f4f5 !important; /* zinc-100 */
+  color: #09090b !important; /* zinc-950 */
+  font-weight: 500 !important;
+}
+
+.cl-formButtonPrimary:hover {
+  background-color: #ffffff !important;
+}
+
+.cl-socialButtonsBlockButton {
+  background-color: #27272a !important; /* zinc-800 */
+  border-color: #3f3f46 !important; /* zinc-700 */
+  color: #f4f4f5 !important; /* zinc-100 */
+}
+
+.cl-socialButtonsBlockButton:hover {
+  background-color: #3f3f46 !important; /* zinc-700 */
+}
+
+.cl-socialButtonsBlockButtonText {
+  color: #f4f4f5 !important;
+}
+
+.cl-dividerLine {
+  background-color: #27272a !important; /* zinc-800 */
+}
+
+.cl-dividerText {
+  color: #71717a !important; /* zinc-500 */
+}
+
+.cl-footerActionText {
+  color: #71717a !important; /* zinc-500 */
+}
+
+.cl-footerActionLink {
+  color: #d4d4d8 !important; /* zinc-300 */
+}
+
+.cl-footerActionLink:hover {
+  color: #fafafa !important;
+}
+
+.cl-footer {
+  background-color: #18181b !important;
+  border-top-color: #27272a !important;
+}
+
+.cl-internal-b3fm6y {
+  background-color: #18181b !important;
+}
+
+.cl-identityPreviewText {
+  color: #d4d4d8 !important;
+}
+
+.cl-identityPreviewEditButton {
+  color: #a1a1aa !important;
+}
+
+.cl-alertText {
+  color: #d4d4d8 !important;
+}
+
+.cl-badge {
+  background-color: #27272a !important;
+  color: #a1a1aa !important;
+  border-color: #3f3f46 !important;
+}
+
+/* Email verification / OTP screen */
+.cl-otpCodeField {
+  gap: 0.5rem !important;
+}
+
+.cl-otpCodeFieldInput {
+  background-color: #09090b !important; /* zinc-950 */
+  border-color: #3f3f46 !important;     /* zinc-700 */
+  color: #fafafa !important;
+  caret-color: #fafafa !important;
+}
+
+.cl-otpCodeFieldInput:focus {
+  border-color: #71717a !important;
+  box-shadow: 0 0 0 2px rgba(113, 113, 122, 0.2) !important;
+}
+
+.cl-verificationLinkStatusText {
+  color: #a1a1aa !important;
+}
+
+.cl-resendCodeLink,
+.cl-formResendCodeLink {
+  color: #d4d4d8 !important;
+}
+
+.cl-resendCodeLink:hover,
+.cl-formResendCodeLink:hover {
+  color: #fafafa !important;
+}
+
+/* Identity preview (email shown between steps) */
+.cl-identityPreview {
+  background-color: #09090b !important;
+  border-color: #3f3f46 !important;
+}
+
+/* Organization creation screen */
+.cl-organizationList,
+.cl-createOrganization {
+  background-color: #18181b !important;
+}
+
+.cl-organizationListCreateOrganizationActionButton {
+  background-color: #27272a !important;
+  border-color: #3f3f46 !important;
+  color: #f4f4f5 !important;
+}
+
+.cl-organizationListCreateOrganizationActionButton:hover {
+  background-color: #3f3f46 !important;
+}
+
+.cl-organizationPreviewMainIdentifier {
+  color: #fafafa !important;
+}
+
+.cl-organizationPreviewSecondaryIdentifier {
+  color: #a1a1aa !important;
+}
+
+.cl-avatarImageActionsUpload {
+  color: #d4d4d8 !important;
+}
+
+.cl-fileDropAreaBox {
+  background-color: #09090b !important;
+  border-color: #3f3f46 !important;
+}
+
+.cl-fileDropAreaIconBox {
+  color: #71717a !important;
+}
+
+.cl-fileDropAreaHint {
+  color: #71717a !important;
+}
+
+.cl-formFieldInputShowPasswordButton {
+  color: #71717a !important;
+}
+
+.cl-formFieldInputShowPasswordButton:hover {
+  color: #d4d4d8 !important;
+}
+
+/* Step/back navigation */
+.cl-backLink,
+.cl-backButton {
+  color: #a1a1aa !important;
+}
+
+.cl-backLink:hover,
+.cl-backButton:hover {
+  color: #fafafa !important;
+}
+
+.cl-navbarButton {
+  color: #a1a1aa !important;
+}
+
+.cl-navbarButton:hover,
+.cl-navbarButton[data-active] {
+  color: #fafafa !important;
+  background-color: #27272a !important;
+}

@@ -1,8 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const id = params.id
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const supabase = createAdminClient()
 
@@ -23,7 +23,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       .eq('id', app.applicant_id)
       .single()
 
-    const applicant = applicantRow || {}
+    const applicant: {
+      name?: string
+      email?: string
+      phone?: string
+      parsed_resume?: { current_role?: string; location?: string }
+    } = applicantRow ?? {}
     const reasoning = app.ai_reasoning || {}
 
     const processed = {
@@ -53,8 +58,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const id = params.id
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   try {
     const body = await req.json()
     const { action, data } = body
@@ -77,7 +82,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         .update({ status: 'advanced', decided_at: new Date().toISOString() })
         .eq('id', id)
       if (error) return NextResponse.json({ error }, { status: 500 })
-      // Record in communications if stage provided
       if (stage) {
         await supabase.from('communications').insert({
           application_id: id,

@@ -29,7 +29,7 @@ export default async function Page({
     supabase
       .from("applications")
       .select(
-        `candidate_id, req_id, org_id, tier, triage_reasoning, status, recruiter_note,
+        `candidate_id, req_id, org_id, tier, triage_reasoning, parsed_resume, status, recruiter_note,
          candidates ( id, name, resume_text )`
       )
       .eq("req_id", id)

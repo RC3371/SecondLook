@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { preFilterCandidate, type RequisitionCriteria } from "./preFilter";
-import { parseResume, type RiskSignals } from "./resumeParser";
+import { parseResume, type ParsedResume, type RiskSignals } from "./resumeParser";
 import { triageCandidate } from "./geminiTriage";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ export interface ApplicationResult {
   org_id: string;
   tier: "auto_reject" | "review" | "strong" | "top";
   triage_reasoning: TriageReasoning;
+  parsed_resume: Omit<ParsedResume, "raw_text"> | null;
   status: "pending";
 }
 
@@ -83,6 +84,9 @@ async function processOne(
   // for pre-filtered rejects, and so the cache key for Gemini is consistent)
   const { parsed, risks } = parseResume(candidate.resume_text);
 
+  // Extract persisted parsed fields (omit raw_text — it's already in candidates.resume_text)
+  const { raw_text: _raw, ...parsedMeta } = parsed;
+
   // Step 3: Skip Gemini if pre-filter is confident enough in the rejection
   if (!preFilter.passed && preFilter.confidence >= 0.7) {
     return {
@@ -101,6 +105,7 @@ async function processOne(
           preFilter.rejectionReason ??
           "Pre-filter: candidate does not meet minimum requirements",
       },
+      parsed_resume: parsedMeta,
       status: "pending",
     };
   }
@@ -121,6 +126,7 @@ async function processOne(
       confidence: triage.confidence,
       summary: triage.summary,
     },
+    parsed_resume: parsedMeta,
     status: "pending",
   };
 }
@@ -178,6 +184,7 @@ export async function processBatch(
               confidence: 0,
               summary: "Processing error — please review manually",
             },
+            parsed_resume: null,
             status: "pending",
           };
         }

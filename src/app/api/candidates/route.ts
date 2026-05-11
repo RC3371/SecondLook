@@ -1,15 +1,31 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ensureProfile } from '@/lib/ensure-profile'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
   try {
+    const profile = await ensureProfile()
+    if (!profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(req.url)
     const query = searchParams.get('q') || ''
     const supabase = createAdminClient()
 
+    // Get job posting IDs for this org
+    const { data: orgJobs } = await supabase
+      .from('job_postings')
+      .select('id')
+      .eq('org_id', profile.org_id)
+
+    const orgJobIds = (orgJobs || []).map((j: any) => j.id)
+    if (!orgJobIds.length) return NextResponse.json([])
+
     const { data: applications, error } = await supabase
       .from('applications')
       .select('id, applicant_id, job_posting_id, status, ai_tier, ai_score, ai_reasoning')
+      .in('job_posting_id', orgJobIds)
       .order('created_at', { ascending: false })
 
     if (error) {

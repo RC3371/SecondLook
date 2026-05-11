@@ -59,20 +59,26 @@ function Sidebar() {
             </nav>
             
             <div className="p-4 border-t border-zinc-900">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                         {user?.imageUrl
-                            ? <img src={user.imageUrl} className="w-8 h-8 rounded-full object-cover" />
-                            : <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium">
+                            ? <img src={user.imageUrl} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                            : <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-medium shrink-0">
                                 {user ? (user.firstName?.[0] ?? '') + (user.lastName?.[0] ?? '') || '?' : '…'}
                               </div>
                         }
-                        <div className="text-sm">
-                            <div className="text-zinc-100 font-medium">{user?.fullName ?? '…'}</div>
-                            <div className="text-zinc-500 text-xs truncate max-w-[120px]">{user?.email ?? ''}</div>
+                        <div className="overflow-hidden">
+                            <div className="text-zinc-100 font-medium text-sm truncate">
+                                {user
+                                    ? (user.fullName && user.fullName !== user.email
+                                        ? user.fullName
+                                        : user.email?.split('@')[0] ?? '…')
+                                    : '…'}
+                            </div>
+                            <div className="text-zinc-400 text-xs truncate mt-0.5" title={user?.email ?? ''}>{user?.email ?? ''}</div>
                         </div>
                     </div>
-                    <a href="/sign-out" className="text-zinc-500 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-zinc-900" title="Logout">
+                    <a href="/sign-out" className="text-zinc-500 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-zinc-900 shrink-0" title="Logout">
                         <div className="icon-log-out text-sm"></div>
                     </a>
                 </div>

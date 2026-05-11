@@ -51,7 +51,9 @@ export async function GET() {
         recruiter: (job.recruiter as any)?.full_name,
         department: job.criteria?.department || 'General',
         applicantsCount: jobApps.length,
-        newApplicantsCount: jobApps.filter((a: any) => a.status === 'new').length,
+        newApplicantsCount: jobApps.filter((a: any) =>
+          a.status === 'pending_consent' || a.status === 'consent_given'
+        ).length,
         stats: {
           top: jobApps.filter((a: any) => a.ai_tier === 'top').length,
           strong: jobApps.filter((a: any) => a.ai_tier === 'strong').length,

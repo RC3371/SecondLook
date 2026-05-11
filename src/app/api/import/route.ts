@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ensureProfile } from '@/lib/ensure-profile'
 import { parseImportFile, extractNameFromText, extractEmailFromText } from '@/lib/parseImport'
-import { processBatch } from '@/lib/triage/batchTriage'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -48,11 +47,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No readable resumes found in file' }, { status: 400 })
     }
 
-    // 4. Upsert applicant records
+    // 4. Insert applicant records (with resume text for later triage)
     const applicantRows = extracted.map((c) => ({
       name: extractNameFromText(c.resumeText, c.filename),
       email: extractEmailFromText(c.resumeText),
       org_id: profile.org_id,
+      resume_text: c.resumeText,
     }))
 
     const { data: inserted, error: insertError } = await supabase
@@ -65,35 +65,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to create applicant records' }, { status: 500 })
     }
 
-    // 5. Build candidate list for triage (id from DB, text from parsed file)
-    const candidates = inserted.map((row, i) => ({
-      id: row.id as string,
-      resume_text: extracted[i].resumeText,
+    // 5. Create application records in pending_consent state.
+    // Triage runs later via /api/triage, but only after consent_given.
+    const consentExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+
+    const applicationRows = inserted.map((row) => ({
+      applicant_id: row.id,
+      job_posting_id: jobId,
+      org_id: profile.org_id,
+      status: 'pending_consent',
+      consent_expires_at: consentExpiresAt,
     }))
 
-    // 6. Run AI triage — writes results to applications table
-    const batchResult = await processBatch(
-      candidates,
-      { id: job.id, title: job.title, criteria: job.criteria ?? {} },
-      profile.org_id,
-      supabase
-    )
+    const { error: appInsertError } = await supabase
+      .from('applications')
+      .insert(applicationRows)
 
-    // 7. Back-fill parsed_resume onto applicant rows from triage results
-    const parsedUpdates = batchResult.results
-      .filter((r) => r.parsed_resume != null)
-      .map((r) => supabase
-        .from('applicants')
-        .update({ parsed_resume: r.parsed_resume })
-        .eq('id', r.candidate_id)
-      )
-
-    await Promise.allSettled(parsedUpdates)
+    if (appInsertError) {
+      console.error('Application insert error:', appInsertError)
+      return NextResponse.json({ error: 'Failed to create application records' }, { status: 500 })
+    }
 
     return NextResponse.json({
       path,
-      processed: batchResult.processed,
-      failed: batchResult.failed,
+      queued: inserted.length,
       total: extracted.length,
     })
   } catch (err) {

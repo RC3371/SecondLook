@@ -118,27 +118,48 @@ export async function POST(req: NextRequest) {
   let authorizedCandidates: Array<{ id: string; resume_text: string }>;
   try {
     const supabase = await createClient();
-    const { data, error: candidateError } = await supabase
+
+    // 4a. Fetch candidates scoped to this requisition.
+    const { data: rawCandidates, error: candidateError } = await supabase
       .from("candidates")
       .select("id, resume_text")
       .eq("req_id", req_id)
       .in("id", uniqueCandidateIds);
 
-    if (candidateError || !data) {
+    if (candidateError || !rawCandidates) {
       return NextResponse.json(
         { error: "Internal server error" },
         { status: 500 }
       );
     }
 
-    if (data.length !== uniqueCandidateIds.length) {
+    // 4b. Filter to only applicants who have given consent.
+    // applications.job_posting_id stores the requisition id; applicant_id links to candidates.id.
+    const { data: consentedApps, error: consentError } = await supabase
+      .from("applications")
+      .select("applicant_id")
+      .eq("job_posting_id", req_id)
+      .eq("status", "consent_given")
+      .in("applicant_id", uniqueCandidateIds);
+
+    if (consentError) {
       return NextResponse.json(
-        { error: "One or more candidates not found for this requisition" },
-        { status: 404 }
+        { error: "Internal server error" },
+        { status: 500 }
       );
     }
 
-    authorizedCandidates = data as Array<{ id: string; resume_text: string }>;
+    const consentedIds = new Set(
+      (consentedApps ?? []).map((a: { applicant_id: string }) => a.applicant_id)
+    );
+    authorizedCandidates = rawCandidates.filter((c) => consentedIds.has(c.id));
+
+    if (authorizedCandidates.length === 0) {
+      return NextResponse.json(
+        { error: "No candidates with consent_given status found for this requisition" },
+        { status: 422 }
+      );
+    }
   } catch {
     return NextResponse.json(
       { error: "Internal server error" },

@@ -34,7 +34,7 @@ export interface ApplicationResult {
   tier: "auto_reject" | "review" | "strong" | "top";
   triage_reasoning: TriageReasoning;
   parsed_resume: Omit<ParsedResume, "raw_text"> | null;
-  status: "pending";
+  status: "triaged";
 }
 
 export interface BatchResult {
@@ -106,7 +106,7 @@ async function processOne(
           "Pre-filter: candidate does not meet minimum requirements",
       },
       parsed_resume: parsedMeta,
-      status: "pending",
+      status: "triaged",
     };
   }
 
@@ -147,7 +147,7 @@ async function upsertResult(
         ai_tier: result.tier,
         ai_score: Math.round((result.triage_reasoning.confidence ?? 0) * 100),
         ai_reasoning: result.triage_reasoning,
-        status: "new",
+        status: "triaged",
       },
       { onConflict: "applicant_id,job_posting_id" }
     );
@@ -195,7 +195,7 @@ export async function processBatch(
               summary: "Processing error — please review manually",
             },
             parsed_resume: null,
-            status: "pending",
+            status: "triaged",
           };
         }
 

@@ -89,6 +89,23 @@ export const webhookHeadersSchema = z
     svix_timestamp: z.string().min(1),
     svix_signature: z.string().min(1),
   })
+  .strict()
+
+export const APPLICATION_STATUSES = [
+  'pending_consent',
+  'consent_given',
+  'consent_declined',
+  'triaged',
+  'referred',
+  'rejected',
+] as const
+
+export type ApplicationStatus = typeof APPLICATION_STATUSES[number]
+
+export const consentDecisionSchema = z
+  .object({
+    decision: z.enum(['given', 'declined']),
+  })
   .strict();
 
 function getDepth(value: unknown, depth = 0): number {

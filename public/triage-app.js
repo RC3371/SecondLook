@@ -94,8 +94,8 @@ function TriageView() {
                             <h1 className="text-xl font-semibold text-zinc-100">{job.title} Applicants</h1>
                             <div className="flex gap-4 items-center">
                                 <div className="flex gap-2">
-                                    <span className="px-2 py-1 rounded text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Top: {job.stats.top}</span>
-                                    <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20">Strong: {job.stats.strong}</span>
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Top: {applications.filter(a => a.aiTier === 'top').length}</span>
+                                    <span className="px-2 py-1 rounded text-xs font-medium bg-blue-500/10 text-blue-500 border border-blue-500/20">Strong: {applications.filter(a => a.aiTier === 'strong').length}</span>
                                 </div>
                             </div>
                         </div>

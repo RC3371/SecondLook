@@ -1,8 +1,8 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const jobId = params.id
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id: jobId } = await params
   try {
     const supabase = createAdminClient()
 
@@ -17,7 +17,6 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Fetch applicants separately
     const applicantIds = (applications || []).map((a: any) => a.applicant_id).filter(Boolean)
     const { data: applicants } = applicantIds.length
       ? await supabase.from('applicants').select('id, name, email, phone, parsed_resume').in('id', applicantIds)
